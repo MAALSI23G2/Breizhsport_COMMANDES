@@ -1,7 +1,7 @@
 # Utiliser l'image PHP avec Apache
 FROM php:8.2-apache
 
-# Installer les extensions PHP nécessaires pour Symfony et Doctrine
+# Installer les extensions PHP nécessaires pour Symfony, Doctrine et RabbitMQ
 RUN apt-get update && apt-get install -y \
     libpng-dev \
     libjpeg-dev \
@@ -9,8 +9,12 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     mariadb-client \
     git \
+    librabbitmq-dev \
+    libssl-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd zip pdo pdo_mysql
+    && docker-php-ext-install gd zip pdo pdo_mysql pcntl sockets \
+    && pecl install amqp \
+    && docker-php-ext-enable amqp
 
 # Activer les modules Apache nécessaires
 RUN a2enmod rewrite
@@ -24,11 +28,12 @@ RUN chown -R www-data:www-data /var/www/html
 # Installer Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# Installer les dépendances Symfony
-RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist; fi
+# Installer Symfony CLI
+RUN curl -sS https://get.symfony.com/cli/installer | bash \
+    && mv /root/.symfony*/bin/symfony /usr/local/bin/symfony
 
-# Appliquer les optimisations de Composer
-RUN if [ -f "composer.json" ]; then composer dump-autoload --optimize; fi
+# Installer les dépendances de Composer
+RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist; fi
 
 # Exposer le port 80
 EXPOSE 80
