@@ -35,6 +35,9 @@ RUN curl -sS https://get.symfony.com/cli/installer | bash \
 # Installer les dépendances de Composer
 RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist; fi
 
+RUN chown -R www-data:www-data /var/www/html/var
+RUN chmod -R 775 /var/www/html/var
+
 # Exposer le port 80
 EXPOSE 80
 

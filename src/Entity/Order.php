@@ -28,6 +28,10 @@ class Order
     #[Groups("order:read")]
     private ?Basket $basket = null;
 
+    #[ORM\Column(type: "datetime")]
+    #[Groups("order:read")]
+    private \DateTime $createdAt;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -68,4 +72,15 @@ class Order
 
         return $this;
     }
+
+    public function getCreatedAt(): \DateTime
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTime $createdAt): void
+    {
+        $this->createdAt = $createdAt;
+    }
+
 }

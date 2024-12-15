@@ -2,36 +2,45 @@
 
 namespace App\Controller;
 
+use App\Message\OrderMessage;
 use App\Repository\OrderRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\Exception\ExceptionInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Routing\Annotation\Route;
 class OrderController extends AbstractController
 {
-    public function __construct()
+    private MessageBusInterface $messageBus;
+    public function __construct(MessageBusInterface $messageBus)
     {
+        $this->messageBus = $messageBus;
     }
 
-/*    #[Route('/create-order', name: 'create_order')]
-    public function createOrder(): JsonResponse
+    /**
+     * @throws ExceptionInterface
+     */
+    #[Route('/create-order', name: 'create_order', methods: ['POST'])]
+    public function createOrder(OrderRepository $orderRepository): JsonResponse
     {
-        $orderData = [
-            'id' => 123,
-            'items' => ['item1', 'item2'],
-            'total' => 45.99,
+        // Exemple : Simuler une commande créée
+        $order = [
+            'orderId' => 123,
+            'userId' => 42,
+            'total' => 59.99
         ];
 
-        $this->orderProducer->publishOrder($orderData);
+        // Publier le message dans RabbitMQ
+        $this->messageBus->dispatch(new OrderMessage($order['orderId'], $order['userId'], $order['total']));
 
-        return new JsonResponse(['status' => 'Order published']);
-    }*/
+        return new JsonResponse(['message' => 'Commande créée et publiée'], Response::HTTP_CREATED);
+    }
     #[Route('/orders/{userId}', name: 'get_user_orders', methods: ['GET'])]
     public function getUserOrders(int $userId, OrderRepository $orderRepository, SerializerInterface $serializer): JsonResponse
     {
         $orders = $orderRepository->findBy(['user_id' => $userId]);
-        $test = 'azea';
         if (empty($orders)) {
             return new JsonResponse(['message' => 'Pas de commande effectuée'], Response::HTTP_OK);
         }
