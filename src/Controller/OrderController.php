@@ -2,10 +2,13 @@
 
 namespace App\Controller;
 
+use App\Entity\Order;
 use App\Message\OrderMessage;
 use App\Repository\OrderRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\ExceptionInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -23,20 +26,31 @@ class OrderController extends AbstractController
      * @throws ExceptionInterface
      */
     #[Route('/create-order', name: 'create_order', methods: ['POST'])]
-    public function createOrder(OrderRepository $orderRepository): JsonResponse
+    public function createOrder(): JsonResponse
     {
-        // Exemple : Simuler une commande créée
-        $order = [
+        // Simuler la création d'une commande (avec des données d'exemple)
+        $orderData = [
             'orderId' => 123,
             'userId' => 42,
-            'total' => 59.99
+            'total' => 59.99,
+            'products' => [
+                ['id' => 1, 'name' => 'T-shirt', 'qty' => 2, 'price' => 20],
+                ['id' => 2, 'name' => 'Pantalon', 'qty' => 1, 'price' => 30],
+            ]
         ];
 
         // Publier le message dans RabbitMQ
-        $this->messageBus->dispatch(new OrderMessage($order['orderId'], $order['userId'], $order['total']));
+        $this->messageBus->dispatch(new OrderMessage($orderData['orderId'], $orderData['userId'], $orderData['total'], (array)$orderData['products']));
 
-        return new JsonResponse(['message' => 'Commande créée et publiée'], Response::HTTP_CREATED);
+        return new JsonResponse(['message' => 'Commande créée et message envoyé à RabbitMQ'], Response::HTTP_CREATED);
     }
+
+    /**
+     * @param int $userId
+     * @param OrderRepository $orderRepository
+     * @param SerializerInterface $serializer
+     * @return JsonResponse
+     */
     #[Route('/orders/{userId}', name: 'get_user_orders', methods: ['GET'])]
     public function getUserOrders(int $userId, OrderRepository $orderRepository, SerializerInterface $serializer): JsonResponse
     {

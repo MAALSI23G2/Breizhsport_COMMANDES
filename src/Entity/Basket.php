@@ -29,7 +29,7 @@ class Basket
     #[Groups("order:read")]
     private ?int $quantity = null;
 
-    #[ORM\OneToMany(targetEntity: BasketProduct::class, mappedBy: 'basket', cascade: ['persist', 'remove'])]
+    #[ORM\OneToMany(mappedBy: 'basket', targetEntity: BasketProduct::class, cascade: ['persist', 'remove'])]
     #[Groups("order:read")]
     private Collection $basketProduct;
 
