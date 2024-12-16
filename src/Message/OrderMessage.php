@@ -4,7 +4,7 @@
 
 namespace App\Message;
 
-class OrderMessage
+class  OrderMessage
 {
     private int $orderId;
     private int $userId;

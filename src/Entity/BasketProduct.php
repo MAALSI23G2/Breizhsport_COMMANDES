@@ -18,9 +18,9 @@ class BasketProduct
     #[ORM\JoinColumn(nullable: false)]
     private Product $product;
 
-    #[ORM\ManyToOne(targetEntity: Basket::class, inversedBy: 'productPanier')]
+    #[ORM\ManyToOne(targetEntity: BasketItem::class, inversedBy: 'productPanier')]
     #[ORM\JoinColumn(nullable: false)]
-    private Basket $basket;
+    private BasketItem $basket;
 
     #[ORM\Column(type: 'integer')]
     private int $quantity;
@@ -45,12 +45,12 @@ class BasketProduct
         $this->product = $product;
     }
 
-    public function getBasket(): Basket
+    public function getBasket(): BasketItem
     {
         return $this->basket;
     }
 
-    public function setBasket(Basket $basket): void
+    public function setBasket(BasketItem $basket): void
     {
         $this->basket = $basket;
     }

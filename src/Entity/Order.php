@@ -26,7 +26,7 @@ class Order
 
     #[ORM\OneToOne(cascade: ['persist', 'remove'])]
     #[Groups("order:read")]
-    private ?Basket $basket = null;
+    private ?BasketItem $basket = null;
 
     #[ORM\Column(type: "datetime")]
     #[Groups("order:read")]
@@ -61,12 +61,12 @@ class Order
         return $this;
     }
 
-    public function getBasket(): ?Basket
+    public function getBasket(): ?BasketItem
     {
         return $this->basket;
     }
 
-    public function setBasket(?Basket $basket): static
+    public function setBasket(?BasketItem $basket): static
     {
         $this->basket = $basket;
 

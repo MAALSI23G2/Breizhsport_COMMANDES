@@ -2,6 +2,8 @@
 
 namespace App\MessageHandler;
 
+use App\Entity\Basket;
+use App\Entity\BasketItem;
 use App\Message\OrderMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -37,7 +39,7 @@ class OrderMessageHandler
 
         // Associer les produits à la commande
         foreach ($message->getProducts() as $productData) {
-            $orderItem = new OrderItem();
+            $orderItem = new BasketItem();
             $orderItem->setOrder($order);
             $orderItem->setProductId($productData['id']);
             $orderItem->setProductName($productData['name']);

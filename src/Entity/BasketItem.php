@@ -2,10 +2,12 @@
 
 namespace App\Entity;
 
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity]
-class OrderItem
+class BasketItem
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -26,6 +28,9 @@ class OrderItem
 
     #[ORM\Column(type: 'float')]
     private float $price;
+    #[ORM\OneToMany(mappedBy: 'basket', targetEntity: BasketProduct::class, cascade: ['persist', 'remove'])]
+    #[Groups("order:read")]
+    private Collection $basketProduct;
 
     public function getId(): ?int
     {
@@ -86,6 +91,17 @@ class OrderItem
     {
         $this->price = $price;
     }
+
+    public function getBasketProduct(): Collection
+    {
+        return $this->basketProduct;
+    }
+
+    public function setBasketProduct(Collection $basketProduct): void
+    {
+        $this->basketProduct = $basketProduct;
+    }
+
 
 
 }
