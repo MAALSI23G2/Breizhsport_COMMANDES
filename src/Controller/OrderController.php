@@ -2,18 +2,17 @@
 
 namespace App\Controller;
 
-use App\Entity\Order;
 use App\Message\OrderMessage;
+use App\Message\PanierGetOne;
 use App\Repository\OrderRepository;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Exception\ExceptionInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Serializer\SerializerInterface;
+
 class OrderController extends AbstractController
 {
     private MessageBusInterface $messageBus;
@@ -28,7 +27,6 @@ class OrderController extends AbstractController
     #[Route('/create-order', name: 'create_order', methods: ['POST'])]
     public function createOrder(): JsonResponse
     {
-        // Simuler la création d'une commande (avec des données d'exemple)
         $orderData = [
             'orderId' => 123,
             'userId' => 42,
@@ -38,13 +36,27 @@ class OrderController extends AbstractController
                 ['id' => 2, 'name' => 'Pantalon', 'qty' => 1, 'price' => 30],
             ]
         ];
-
+        dump('Message envoyé au bus');
         // Publier le message dans RabbitMQ
         $this->messageBus->dispatch(new OrderMessage($orderData['orderId'], $orderData['userId'], $orderData['total'], (array)$orderData['products']));
 
         return new JsonResponse(['message' => 'Commande créée et message envoyé à RabbitMQ'], Response::HTTP_CREATED);
     }
 
+    /**
+     * @Route("/send_to", name="get_panier", methods={"GET"})
+     * @throws ExceptionInterface
+     */
+    #[Route('/send-to-pan', name: 'get_send_to_panier', methods: ['GET'])]
+    public function sendToPanier(int $userId): JsonResponse
+    {
+        //TODO : $userId = $user->getId();
+
+        // Envoi du message PanierGetOne
+        $this->messageBus->dispatch(new PanierGetOne($userId));
+
+        return new JsonResponse(['message' => 'PanierGetOne'], Response::HTTP_OK);
+    }
     /**
      * @param int $userId
      * @param OrderRepository $orderRepository

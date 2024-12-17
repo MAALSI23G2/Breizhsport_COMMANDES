@@ -1,7 +1,7 @@
 framework:
     messenger:
         transports:
-            order_queue: # Nom de la file d'attente
+            order_queue:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
                     exchange:
@@ -9,5 +9,14 @@ framework:
                         type: direct
                     queues:
                         order_queue: ~
+            panier_queue:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    exchange:
+                        name: order_exchange
+                        type: direct
+                    queues:
+                        panier_queue: ~
         routing:
             'App\Message\OrderMessage': order_queue
+            'App\Message\PanierGetOne': panier_queue

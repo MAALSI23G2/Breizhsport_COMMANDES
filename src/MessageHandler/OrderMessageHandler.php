@@ -2,14 +2,12 @@
 
 namespace App\MessageHandler;
 
-use App\Entity\Basket;
 use App\Entity\BasketItem;
 use App\Message\OrderMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 use App\Entity\Order;
-use App\Entity\OrderItem;
 
 #[AsMessageHandler]
 class OrderMessageHandler
