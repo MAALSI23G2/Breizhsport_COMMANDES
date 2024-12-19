@@ -38,6 +38,9 @@ RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-d
 RUN chown -R www-data:www-data /var/www/html/var
 RUN chmod -R 775 /var/www/html/var
 
+ENV DATABASE_URL="mysql://symfony:symfony@db:3306/symfony_breizhsport_order"
+ENV RABBITMQ_URI="amqp://user:password@rabbitmq"
+
 # Exposer le port 80
 EXPOSE 80
 

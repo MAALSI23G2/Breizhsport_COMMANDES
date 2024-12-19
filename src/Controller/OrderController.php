@@ -44,16 +44,17 @@ class OrderController extends AbstractController
     }
 
     /**
-     * @Route("/send_to", name="get_panier", methods={"GET"})
+     * @param int $userId
+     * @return JsonResponse
      * @throws ExceptionInterface
      */
-    #[Route('/send-to-pan', name: 'get_send_to_panier', methods: ['GET'])]
-    public function sendToPanier(int $userId): JsonResponse
+    #[Route('/send-to-panier', name: 'get_send_to_panier')]
+    public function sendToPanier(): JsonResponse
     {
         //TODO : $userId = $user->getId();
 
         // Envoi du message PanierGetOne
-        $this->messageBus->dispatch(new PanierGetOne($userId));
+        $this->messageBus->dispatch(new PanierGetOne(1));
 
         return new JsonResponse(['message' => 'PanierGetOne'], Response::HTTP_OK);
     }
