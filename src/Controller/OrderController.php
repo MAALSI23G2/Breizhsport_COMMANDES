@@ -48,7 +48,7 @@ class OrderController extends AbstractController
      * @param Request $request
      * @return JsonResponse
      */
-    #[Route('/send_order', name: 'get_send_to_panier', methods: ['GET'] )]
+    #[Route('/send_order', name: 'get_send_to_panier', methods: ['POST'] )]
     public function sendOrder(Request $request): JsonResponse
     {
         //TODO : $userId = $user->getId();
