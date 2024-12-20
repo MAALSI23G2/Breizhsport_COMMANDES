@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
@@ -14,32 +15,23 @@ class BasketItem
     #[ORM\Column(type: 'integer')]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: Order::class)]
+    #[ORM\ManyToOne(targetEntity: Order::class, inversedBy: 'baskets')]
+    #[ORM\JoinColumn(nullable: false)]
     private Order $order;
 
-    #[ORM\Column(type: 'integer')]
-    private int $productId;
-
-    #[ORM\Column(type: 'string', length: 255)]
-    private string $productName;
-
-    #[ORM\Column(type: 'integer')]
-    private int $quantity;
-
-    #[ORM\Column(type: 'float')]
-    private float $price;
     #[ORM\OneToMany(mappedBy: 'basket', targetEntity: BasketProduct::class, cascade: ['persist', 'remove'])]
     #[Groups("order:read")]
     private Collection $basketProduct;
 
+
+    public function __construct()
+    {
+        $this->basketProduct = new ArrayCollection();
+    }
+
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function setId(?int $id): void
-    {
-        $this->id = $id;
     }
 
     public function getOrder(): Order
@@ -47,49 +39,10 @@ class BasketItem
         return $this->order;
     }
 
-    public function setOrder(Order $order): void
+    public function setOrder(Order $order): static
     {
         $this->order = $order;
-    }
-
-    public function getProductId(): int
-    {
-        return $this->productId;
-    }
-
-    public function setProductId(int $productId): void
-    {
-        $this->productId = $productId;
-    }
-
-    public function getProductName(): string
-    {
-        return $this->productName;
-    }
-
-    public function setProductName(string $productName): void
-    {
-        $this->productName = $productName;
-    }
-
-    public function getQuantity(): int
-    {
-        return $this->quantity;
-    }
-
-    public function setQuantity(int $quantity): void
-    {
-        $this->quantity = $quantity;
-    }
-
-    public function getPrice(): float
-    {
-        return $this->price;
-    }
-
-    public function setPrice(float $price): void
-    {
-        $this->price = $price;
+        return $this;
     }
 
     public function getBasketProduct(): Collection
@@ -97,12 +50,22 @@ class BasketItem
         return $this->basketProduct;
     }
 
-    public function setBasketProduct(Collection $basketProduct): void
+    public function addBasketProduct(BasketProduct $basketProduct): static
     {
-        $this->basketProduct = $basketProduct;
+        if (!$this->basketProduct->contains($basketProduct)) {
+            $this->basketProduct[] = $basketProduct;
+            $basketProduct->setBasket($this);
+        }
+        return $this;
     }
 
-
-
+    public function removeBasketProduct(BasketProduct $basketProduct): static
+    {
+        if ($this->basketProduct->removeElement($basketProduct)) {
+            if ($basketProduct->getBasket() === $this) {
+                $basketProduct->setBasket(null);
+            }
+        }
+        return $this;
+    }
 }
-

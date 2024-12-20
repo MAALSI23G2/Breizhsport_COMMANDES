@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Message\OrderMessage;
+use App\Message\PanierGetOne;
 use App\Repository\OrderRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -47,18 +48,25 @@ class OrderController extends AbstractController
     /**
      * @param Request $request
      * @return JsonResponse
+     * @throws ExceptionInterface
      */
-    #[Route('/send_order', name: 'get_send_to_panier', methods: ['POST'] )]
+    #[Route('/send_order', name: 'get_send_order', methods: ['POST'] )]
     public function sendOrder(Request $request): JsonResponse
     {
-        //TODO : $userId = $user->getId();
-        $userId = $request->request->get(1); // Si le paramètre est dans le corps POST
-            if (!$userId) {
-                return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
-            }
+        // Décoder le contenu JSON envoyé par le frontend
+        $data = json_decode($request->getContent(), true);
 
-            // Logique de traitement avec $userId
-            return new JsonResponse(['message' => "Message envoyé pour l'utilisateur:$userId"], Response::HTTP_OK);
+        // Vérifier que le userId est présent
+        if (!isset($data['userId'])) {
+            return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $userId = (int) $data['userId'];
+
+        // Envoi d'un message dans RabbitMQ via Symfony Messenger
+        $this->messageBus->dispatch(new PanierGetOne($userId));
+
+        return new JsonResponse(['message' => "Message envoyé pour l'utilisateur : $userId"], JsonResponse::HTTP_OK);
     }
 
     /**

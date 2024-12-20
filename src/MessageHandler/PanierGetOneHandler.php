@@ -21,12 +21,8 @@ class PanierGetOneHandler
     public function __invoke(PanierGetOne $message): void
     {
         // Log ou traitement de la demande du panier avec l'ID utilisateur
-        $this->logger->info('Message PanierGetOne reçu', [
+        $this->logger->info('PanierGetOne reçu', [
             'userId' => $message->getUserId(),
         ]);
-
-        // Ici tu peux ajouter le traitement que tu veux faire avec le panier
-        // Exemple : récupérer les articles dans le panier pour cet utilisateur
-        // $panier = $this->panierService->getPanierByUserId($message->getUserId());
     }
 }

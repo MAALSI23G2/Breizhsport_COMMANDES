@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\OrderRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 
@@ -20,17 +22,22 @@ class Order
     #[Groups("order:read")]
     private ?string $status = null;
 
-    #[ORM\Column(nullable: true)]
+    #[ORM\Column(nullable: false)]
     #[Groups("order:read")]
     private ?int $user_id = null;
 
-    #[ORM\OneToOne(cascade: ['persist', 'remove'])]
+    #[ORM\OneToMany(mappedBy: 'order', targetEntity: BasketItem::class, cascade: ['persist', 'remove'])]
     #[Groups("order:read")]
-    private ?BasketItem $basket = null;
+    private Collection $baskets;
 
-    #[ORM\Column(type: "datetime")]
+    #[ORM\Column(type: 'datetime')]
     #[Groups("order:read")]
     private \DateTime $createdAt;
+
+    public function __construct()
+    {
+        $this->baskets = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -45,7 +52,6 @@ class Order
     public function setStatus(?string $status): static
     {
         $this->status = $status;
-
         return $this;
     }
 
@@ -57,19 +63,30 @@ class Order
     public function setUserId(?int $user_id): static
     {
         $this->user_id = $user_id;
-
         return $this;
     }
 
-    public function getBasket(): ?BasketItem
+    public function getBaskets(): Collection
     {
-        return $this->basket;
+        return $this->baskets;
     }
 
-    public function setBasket(?BasketItem $basket): static
+    public function addBasket(BasketItem $basket): static
     {
-        $this->basket = $basket;
+        if (!$this->baskets->contains($basket)) {
+            $this->baskets[] = $basket;
+            $basket->setOrder($this);
+        }
+        return $this;
+    }
 
+    public function removeBasket(BasketItem $basket): static
+    {
+        if ($this->baskets->removeElement($basket)) {
+            if ($basket->getOrder() === $this) {
+                $basket->setOrder(null);
+            }
+        }
         return $this;
     }
 
@@ -82,5 +99,4 @@ class Order
     {
         $this->createdAt = $createdAt;
     }
-
 }
