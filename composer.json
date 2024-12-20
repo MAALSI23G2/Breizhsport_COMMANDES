@@ -20,7 +20,8 @@
         "symfony/property-access": "7.2.*",
         "symfony/runtime": "7.2.*",
         "symfony/serializer": "7.2.*",
-        "symfony/yaml": "7.2.*"
+        "symfony/yaml": "7.2.*",
+      "ext-http": "*"
     },
     "config": {
         "allow-plugins": {

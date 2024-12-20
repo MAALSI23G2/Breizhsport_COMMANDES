@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Message\OrderMessage;
-use App\Message\PanierGetOne;
 use App\Repository\OrderRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -12,7 +11,9 @@ use Symfony\Component\Messenger\Exception\ExceptionInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\HttpFoundation\Request;
 
+#[Route('/order', name: 'order')]
 class OrderController extends AbstractController
 {
     private MessageBusInterface $messageBus;
@@ -44,27 +45,29 @@ class OrderController extends AbstractController
     }
 
     /**
-     * @param int $userId
+     * @param Request $request
      * @return JsonResponse
-     * @throws ExceptionInterface
      */
-    #[Route('/send-to-panier', name: 'get_send_to_panier')]
-    public function sendToPanier(): JsonResponse
+    #[Route('/send_order', name: 'get_send_to_panier', methods: ['GET'] )]
+    public function sendOrder(Request $request): JsonResponse
     {
         //TODO : $userId = $user->getId();
+        $userId = $request->request->get(1); // Si le paramètre est dans le corps POST
+            if (!$userId) {
+                return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
+            }
 
-        // Envoi du message PanierGetOne
-        $this->messageBus->dispatch(new PanierGetOne(1));
-
-        return new JsonResponse(['message' => 'PanierGetOne'], Response::HTTP_OK);
+            // Logique de traitement avec $userId
+            return new JsonResponse(['message' => "Message envoyé pour l'utilisateur:$userId"], Response::HTTP_OK);
     }
+
     /**
      * @param int $userId
      * @param OrderRepository $orderRepository
      * @param SerializerInterface $serializer
      * @return JsonResponse
      */
-    #[Route('/orders/{userId}', name: 'get_user_orders', methods: ['GET'])]
+    #[Route('/order_list/{userId}', name: 'get_user_orders', methods: ['GET'])]
     public function getUserOrders(int $userId, OrderRepository $orderRepository, SerializerInterface $serializer): JsonResponse
     {
         $orders = $orderRepository->findBy(['user_id' => $userId]);
