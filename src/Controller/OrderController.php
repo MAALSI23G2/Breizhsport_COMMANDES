@@ -66,7 +66,7 @@ class OrderController extends AbstractController
         // Envoi d'un message dans RabbitMQ via Symfony Messenger
         $this->messageBus->dispatch(new PanierGetOne($userId));
 
-        return new JsonResponse(['message' => "Message envoyé pour l'utilisateur : $userId"], JsonResponse::HTTP_OK);
+        return new JsonResponse(['message' => "PanierGetOne $userId"], JsonResponse::HTTP_OK);
     }
 
     /**
