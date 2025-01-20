@@ -2,41 +2,38 @@
 
 namespace App\Entity;
 
-use App\Repository\OrderRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Serializer\Annotation\Groups;
 
-#[ORM\Entity(repositoryClass: OrderRepository::class)]
+#[ORM\Entity]
 #[ORM\Table(name: '`order`')]
 class Order
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column]
-    #[Groups("order:read")]
+    #[ORM\Column(type: "integer")]
     private ?int $id = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    #[Groups("order:read")]
-    private ?string $status = null;
+    #[ORM\Column(type: "integer")]
+    private int $userId;
 
-    #[ORM\Column(nullable: false)]
-    #[Groups("order:read")]
-    private ?int $user_id = null;
+    #[ORM\OneToMany(mappedBy: "order", targetEntity: "App\Entity\OrderItem", cascade: ["persist"])]
+    private Collection $items;
 
-    #[ORM\OneToMany(mappedBy: 'order', targetEntity: BasketItem::class, cascade: ['persist', 'remove'])]
-    #[Groups("order:read")]
-    private Collection $baskets;
+    #[ORM\Column(type: "float")]
+    private float $total;
 
-    #[ORM\Column(type: 'datetime')]
-    #[Groups("order:read")]
+    #[ORM\Column(type: "string", length: 255, nullable: true)]
+    private ?string $status = 'pending';
+
+    #[ORM\Column(type: "datetime")]
     private \DateTime $createdAt;
 
     public function __construct()
     {
-        $this->baskets = new ArrayCollection();
+        $this->createdAt = new \DateTime();
+        $this->items = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -44,49 +41,63 @@ class Order
         return $this->id;
     }
 
+    public function getUserId(): int
+    {
+        return $this->userId;
+    }
+
+    public function setUserId(int $userId): self
+    {
+        $this->userId = $userId;
+        return $this;
+    }
+
+    public function getItems(): Collection
+    {
+        return $this->items;
+    }
+
+    public function addItem(OrderItem $item): self
+    {
+        if (!$this->items->contains($item)) {
+            $this->items[] = $item;
+            $item->setOrder($this); // Lier l'item à la commande
+        }
+
+        return $this;
+    }
+
+    public function removeItem(OrderItem $item): self
+    {
+        if ($this->items->contains($item)) {
+            $this->items->removeElement($item);
+            if ($item->getOrder() === $this) {
+                $item->setOrder(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getTotal(): float
+    {
+        return $this->total;
+    }
+
+    public function setTotal(float $total): self
+    {
+        $this->total = $total;
+        return $this;
+    }
+
     public function getStatus(): ?string
     {
         return $this->status;
     }
 
-    public function setStatus(?string $status): static
+    public function setStatus(string $status): self
     {
         $this->status = $status;
-        return $this;
-    }
-
-    public function getUserId(): ?int
-    {
-        return $this->user_id;
-    }
-
-    public function setUserId(?int $user_id): static
-    {
-        $this->user_id = $user_id;
-        return $this;
-    }
-
-    public function getBaskets(): Collection
-    {
-        return $this->baskets;
-    }
-
-    public function addBasket(BasketItem $basket): static
-    {
-        if (!$this->baskets->contains($basket)) {
-            $this->baskets[] = $basket;
-            $basket->setOrder($this);
-        }
-        return $this;
-    }
-
-    public function removeBasket(BasketItem $basket): static
-    {
-        if ($this->baskets->removeElement($basket)) {
-            if ($basket->getOrder() === $this) {
-                $basket->setOrder(null);
-            }
-        }
         return $this;
     }
 
@@ -95,8 +106,9 @@ class Order
         return $this->createdAt;
     }
 
-    public function setCreatedAt(\DateTime $createdAt): void
+    public function setCreatedAt(\DateTime $createdAt): self
     {
         $this->createdAt = $createdAt;
+        return $this;
     }
 }

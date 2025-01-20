@@ -24,39 +24,17 @@ class OrderController extends AbstractController
     }
 
     /**
-     * @throws ExceptionInterface
-     */
-    #[Route('/create-order', name: 'create_order', methods: ['POST'])]
-    public function createOrder(): JsonResponse
-    {
-        $orderData = [
-            'orderId' => 123,
-            'userId' => 42,
-            'total' => 59.99,
-            'products' => [
-                ['id' => 1, 'name' => 'T-shirt', 'qty' => 2, 'price' => 20],
-                ['id' => 2, 'name' => 'Pantalon', 'qty' => 1, 'price' => 30],
-            ]
-        ];
-        dump('Message envoyé au bus');
-        // Publier le message dans RabbitMQ
-        $this->messageBus->dispatch(new OrderMessage($orderData['orderId'], $orderData['userId'], $orderData['total'], (array)$orderData['products']));
-
-        return new JsonResponse(['message' => 'Commande créée et message envoyé à RabbitMQ'], Response::HTTP_CREATED);
-    }
-
-    /**
      * @param Request $request
      * @return JsonResponse
      * @throws ExceptionInterface
      */
-    #[Route('/send_order', name: 'get_send_order', methods: ['POST'] )]
+    #[Route('/send_order', name: 'get_send_order', methods: ['POST'])]
     public function sendOrder(Request $request): JsonResponse
     {
         // Décoder le contenu JSON envoyé par le frontend
         $data = json_decode($request->getContent(), true);
 
-        // Vérifier que le userId est présent
+        // Vérifier que userId est présent
         if (!isset($data['userId'])) {
             return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
         }
@@ -66,7 +44,8 @@ class OrderController extends AbstractController
         // Envoi d'un message dans RabbitMQ via Symfony Messenger
         $this->messageBus->dispatch(new PanierGetOne($userId));
 
-        return new JsonResponse(['message' => "PanierGetOne $userId"], JsonResponse::HTTP_OK);
+        // Retourner une réponse indiquant que le message a bien été envoyé
+        return new JsonResponse(['message' => "PanierGetOne IdUser : $userId"], Response::HTTP_OK);
     }
 
     /**
