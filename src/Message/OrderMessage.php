@@ -9,7 +9,7 @@ class  OrderMessage
     private int $orderId;
     private int $userId;
     private float $total;
-    private array $products;  // Liste des produits de la commande (en option)
+    private array $products;
 
     public function __construct(int $orderId, int $userId, float $total, array $products = [])
     {

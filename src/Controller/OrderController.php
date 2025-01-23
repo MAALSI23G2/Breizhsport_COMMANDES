@@ -13,6 +13,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Uid\Uuid;
 
 #[Route('/order', name: 'order')]
 class OrderController extends AbstractController
@@ -41,11 +42,13 @@ class OrderController extends AbstractController
 
         $userId = (int) $data['userId'];
 
+        $uniqueId = Uuid::v4()->toRfc4122();
+
         // Envoi d'un message dans RabbitMQ via Symfony Messenger
-        $this->messageBus->dispatch(new PanierGetOne($userId));
+        $this->messageBus->dispatch(new PanierGetOne($userId, $uniqueId));
 
         // Retourner une réponse indiquant que le message a bien été envoyé
-        return new JsonResponse(['message' => "PanierGetOne IdUser : $userId"], Response::HTTP_OK);
+        return new JsonResponse(['message' => "PanierGetOne UniqueId: $uniqueId  IdUser : $userId"], Response::HTTP_OK);
     }
 
     /**
