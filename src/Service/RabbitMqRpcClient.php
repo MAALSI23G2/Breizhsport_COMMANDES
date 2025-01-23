@@ -24,7 +24,7 @@ class RabbitMqRpcClient
 
         // Si l'URI n'est pas défini, vous pouvez gérer l'erreur ou définir une valeur par défaut
         if (!$rabbitMqUri) {
-            throw new Exception('MESSENGER_TRANSPORT_DSN is not set in the environment');
+            throw new Exception('RABBITMQ_URI is not set in the environment');
         }
 
         // Parse the URI to extract host and port
