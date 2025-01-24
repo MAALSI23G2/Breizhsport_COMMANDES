@@ -19,11 +19,14 @@ RUN apt-get update && apt-get install -y \
 # Activer les modules Apache nécessaires
 RUN a2enmod rewrite
 
-# Copier le code de l'application dans le conteneur
-COPY . /var/www/html/
-
 # Définir les droits d'accès au dossier pour Apache
 RUN chown -R www-data:www-data /var/www/html
+
+# Configurer Git pour éviter les erreurs de "dubious ownership"
+RUN git config --global --add safe.directory /var/www/html
+
+# Copier le code de l'application dans le conteneur
+COPY . /var/www/html/
 
 # Installer Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -32,8 +35,8 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 RUN curl -sS https://get.symfony.com/cli/installer | bash \
     && mv /root/.symfony*/bin/symfony /usr/local/bin/symfony
 
-# Installer les dépendances de Composer
-RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist; fi
+# Installer les dépendances de Composer sans exécuter de scripts
+RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist --no-scripts; fi
 
 RUN chown -R www-data:www-data /var/www/html/var
 RUN chmod -R 775 /var/www/html/var
@@ -44,5 +47,5 @@ ENV RABBITMQ_URI="amqp://user:password@rabbitmq"
 # Exposer le port 80
 EXPOSE 80
 
-# Démarrer Apache
-CMD ["apache2-foreground"]
+# Démarrer Apache avec un post-install script
+CMD composer run-script post-install-cmd && apache2-foreground
