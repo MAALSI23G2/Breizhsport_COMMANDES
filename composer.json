@@ -11,6 +11,7 @@
         "doctrine/doctrine-bundle": "^2.13.1",
         "doctrine/doctrine-migrations-bundle": "^3.3.1",
         "doctrine/orm": "^2.10",
+        "nelmio/cors-bundle": "^2.5",
         "php-amqplib/php-amqplib": "^3.7",
         "symfony/amqp-messenger": "7.2.*",
         "symfony/console": "7.2.*",
