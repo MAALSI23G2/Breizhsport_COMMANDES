@@ -19,14 +19,18 @@ RUN apt-get update && apt-get install -y \
 # Activer les modules Apache nécessaires
 RUN a2enmod rewrite
 
-# Définir les droits d'accès au dossier pour Apache
-RUN chown -R www-data:www-data /var/www/html
-
 # Configurer Git pour éviter les erreurs de "dubious ownership"
 RUN git config --global --add safe.directory /var/www/html
 
 # Copier le code de l'application dans le conteneur
 COPY . /var/www/html/
+
+# Créer le répertoire var (en cas de non-existence)
+RUN mkdir -p /var/www/html/var
+
+# Définir les droits d'accès au dossier pour Apache
+RUN chown -R www-data:www-data /var/www/html
+RUN chown -R www-data:www-data /var/www/html/var
 
 # Installer Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -38,7 +42,7 @@ RUN curl -sS https://get.symfony.com/cli/installer | bash \
 # Installer les dépendances de Composer sans exécuter de scripts
 RUN if [ -f "composer.json" ]; then composer install --no-interaction --prefer-dist --no-scripts; fi
 
-RUN chown -R www-data:www-data /var/www/html/var
+# Appliquer les bonnes permissions sur le répertoire var
 RUN chmod -R 775 /var/www/html/var
 
 ENV DATABASE_URL="mysql://symfony:symfony@db:3306/symfony_breizhsport_order"
@@ -49,4 +53,3 @@ EXPOSE 80
 
 # Démarrer Apache avec un post-install script
 CMD ["apache2-foreground"]
-
