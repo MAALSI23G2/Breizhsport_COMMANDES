@@ -2,8 +2,9 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
 use Doctrine\ORM\Mapping as ORM;
-
+#[ApiResource]
 #[ORM\Entity]
 class OrderItem
 {

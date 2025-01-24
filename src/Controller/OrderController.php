@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-use App\Message\OrderMessage;
 use App\Message\PanierGetOne;
 use App\Repository\OrderRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -35,12 +34,18 @@ class OrderController extends AbstractController
         // Décoder le contenu JSON envoyé par le frontend
         $data = json_decode($request->getContent(), true);
 
-        // Vérifier que userId est présent
-        if (!isset($data['userId'])) {
+        // Vérifier que $data est bien un tableau et que userId est présent
+        if (!is_array($data) || !isset($data['userId'])) {
             return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
         }
 
-        $userId = (int) $data['userId'];
+        // Vérifier que userId est un entier avant de faire le cast
+        if (is_numeric($data['userId']) && (int) $data['userId'] == $data['userId']) {
+            // S'assurer que userId est bien un entier
+            $userId = (int) $data['userId'];
+        } else {
+            return new JsonResponse(['error' => 'userId must be an integer'], Response::HTTP_BAD_REQUEST);
+        }
 
         $uniqueId = Uuid::v4()->toRfc4122();
 
@@ -50,6 +55,8 @@ class OrderController extends AbstractController
         // Retourner une réponse indiquant que le message a bien été envoyé
         return new JsonResponse(['message' => "PanierGetOne UniqueId: $uniqueId  IdUser : $userId"], Response::HTTP_OK);
     }
+
+
 
     /**
      * @param int $userId

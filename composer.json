@@ -7,22 +7,32 @@
         "php": ">=8.2",
         "ext-ctype": "*",
         "ext-iconv": "*",
+        "api-platform/doctrine-orm": "^4.0",
+        "api-platform/symfony": "^4.0",
         "doctrine/dbal": "^3.9.3",
         "doctrine/doctrine-bundle": "^2.13.1",
         "doctrine/doctrine-migrations-bundle": "^3.3.1",
         "doctrine/orm": "^2.10",
         "nelmio/cors-bundle": "^2.5",
         "php-amqplib/php-amqplib": "^3.7",
+        "phpdocumentor/reflection-docblock": "^5.6",
+        "phpstan/phpdoc-parser": "^2.0",
         "symfony/amqp-messenger": "7.2.*",
+        "symfony/asset": "7.2.*",
         "symfony/console": "7.2.*",
         "symfony/dotenv": "7.2.*",
+        "symfony/expression-language": "7.2.*",
         "symfony/flex": "^2.4.7",
         "symfony/framework-bundle": "7.2.*",
         "symfony/messenger": "7.2.*",
         "symfony/property-access": "7.2.*",
+        "symfony/property-info": "7.2.*",
         "symfony/runtime": "7.2.*",
+        "symfony/security-bundle": "7.2.*",
         "symfony/serializer": "7.2.*",
+        "symfony/twig-bundle": "7.2.*",
         "symfony/uid": "7.2.*",
+        "symfony/validator": "7.2.*",
         "symfony/yaml": "7.2.*"
     },
     "config": {
@@ -64,7 +74,8 @@
         ],
         "post-update-cmd": [
             "@auto-scripts"
-        ]
+        ],
+        "phpstan": "vendor/bin/phpstan analyse"
     },
     "conflict": {
         "symfony/symfony": "*"
@@ -76,6 +87,7 @@
         }
     },
     "require-dev": {
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^11.5",
         "symfony/browser-kit": "7.2.*",
         "symfony/css-selector": "7.2.*",
