@@ -48,4 +48,5 @@ ENV RABBITMQ_URI="amqp://user:password@rabbitmq"
 EXPOSE 80
 
 # Démarrer Apache avec un post-install script
-CMD composer run-script post-install-cmd && apache2-foreground
+CMD ["apache2-foreground"]
+
