@@ -4,60 +4,43 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: symfony_breizhsport_order
-          MYSQL_USER: symfony
-          MYSQL_PASSWORD: symfony
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --host=localhost --user=symfony --password=symfony"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
     steps:
-      - name: Checkout du code
-        uses: actions/checkout@v3
+      - name: Checkout du repository
+        uses: actions/checkout@v4
 
-      - name: Fix Git safe directory issue
-        run: git config --global --add safe.directory /app
-
-      - name: Attendre que MySQL soit prêt
+      - name: Installer PHP et extensions
         run: |
-          echo "Attente de MySQL..."
-          until mysqladmin ping -h"127.0.0.1" --silent; do
-            sleep 2
-          done
-          echo "MySQL est prêt !"
+          sudo apt-get update && sudo apt-get install -y \
+          zip unzip git libpng-dev libonig-dev libxml2-dev \
+          && docker-php-ext-install zip mbstring xml
 
-      - name: Définir DATABASE_URL correctement
-        run: echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order" >> $GITHUB_ENV
-
-      - name: Installer PHP et Composer avec les extensions requises
+      - name: Vérifier la configuration PHP
         run: |
-          docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            apt-get update && apt-get install -y librabbitmq-dev libssl-dev &&
-            docker-php-ext-install sockets &&
-            if ! php -m | grep -q 'amqp'; then pecl install amqp && docker-php-ext-enable amqp; fi &&
-            curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer &&
-            composer install --prefer-dist --no-progress"
+          php --ini
+          php -m | grep -i zip
+          git --version
 
-      - name: Vider le cache Symfony
+      - name: Installer Composer
         run: |
-          docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            php bin/console cache:clear"
+          curl -sS https://getcomposer.org/installer | php
+          sudo mv composer.phar /usr/local/bin/composer
+
+      - name: Installer les dépendances avec Composer
+        run: |
+          composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Vérifier que l'application fonctionne
+        run: |
+          php bin/console cache:clear
+
+      - name: Lancer les tests
+        run: |
+          php bin/phpunit
