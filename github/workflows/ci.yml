@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: symfony_breizhsport_order
+          MYSQL_USER: symfony
+          MYSQL_PASSWORD: symfony
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=localhost --user=symfony --password=symfony"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout le code
+        uses: actions/checkout@v3
+
+      - name: Installer Docker Compose
+        run: sudo apt-get update && sudo apt-get install -y docker-compose
+
+      - name: Construire l'image Docker
+        run: docker build -t antoncesi/breizhsport_commande:latest .
+
+      - name: Lancer les conteneurs Docker
+        run: docker-compose up -d
+
+      - name: Installer Composer
+        run: docker run --rm -v $(pwd):/app -w /app composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Vérifier la syntaxe PHP
+        run: docker run --rm -v $(pwd):/app -w /app antoncesi/breizhsport_commande:latest php -l src/
+
+      - name: Lancer les tests PHPUnit
+        run: docker run --rm -v $(pwd):/app -w /app antoncesi/breizhsport_commande:latest bin/phpunit --coverage-text
+
+      - name: Linter le code avec PHP-CS-Fixer
+        run: docker run --rm -v $(pwd):/app -w /app antoncesi/breizhsport_commande:latest vendor/bin/php-cs-fixer fix --dry-run --diff
