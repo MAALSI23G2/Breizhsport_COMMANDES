@@ -51,9 +51,10 @@ jobs:
       - name: Installer PHP et Composer avec les extensions requises
         run: |
           docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            apt-get update && apt-get install -y librabbitmq-dev libssl-dev &&
-            docker-php-ext-install sockets &&
+            apt-get update && apt-get install -y librabbitmq-dev libssl-dev zip unzip git &&
+            docker-php-ext-install sockets pdo_mysql &&
             if ! php -m | grep -q 'amqp'; then pecl install amqp && docker-php-ext-enable amqp; fi &&
+            echo 'extension=amqp.so' > /usr/local/etc/php/conf.d/amqp.ini &&
             curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer &&
             composer install --prefer-dist --no-progress"
 
