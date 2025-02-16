@@ -40,10 +40,16 @@ jobs:
       - name: Attendre que MySQL soit prêt
         run: |
           echo "Attente de MySQL..."
-          until mysqladmin ping -h"mysql" --silent; do
+          for i in {1..30}; do
+            if mysqladmin ping -h"mysql" --silent; then
+              echo "MySQL est prêt !"
+              exit 0
+            fi
+            echo "En attente de MySQL ($i/30)..."
             sleep 2
           done
-          echo "MySQL est prêt !"
+          echo "MySQL n'a pas démarré à temps."
+          exit 1
 
       - name: Définir DATABASE_URL correctement
         run: echo "DATABASE_URL=mysql://symfony:symfony@mysql:3306/symfony_breizhsport_order" >> $GITHUB_ENV
