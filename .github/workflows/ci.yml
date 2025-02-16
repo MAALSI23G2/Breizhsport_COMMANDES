@@ -31,42 +31,33 @@ jobs:
           --health-retries=3
 
     steps:
-      - name: 📥 Checkout du code
+      - name: Checkout du code
         uses: actions/checkout@v3
 
-      - name: 🔧 Fix Git safe directory issue
-        run: git config --global --add safe.directory $(pwd)
+      - name: Fix Git safe directory issue
+        run: git config --global --add safe.directory /app
 
-      - name: ⏳ Attendre que MySQL soit prêt
+      - name: Attendre que MySQL soit prêt
         run: |
           echo "Attente de MySQL..."
-          until mysqladmin ping -h"127.0.0.1" --silent; do
+          until mysqladmin ping -h"mysql" --silent; do
             sleep 2
           done
-          sleep 5
-          echo "✅ MySQL est prêt !"
+          echo "MySQL est prêt !"
 
-      - name: 🛠 Définir DATABASE_URL correctement
-        run: |
-          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order" >> $GITHUB_ENV
-          echo "✅ DATABASE_URL défini !"
+      - name: Définir DATABASE_URL correctement
+        run: echo "DATABASE_URL=mysql://symfony:symfony@mysql:3306/symfony_breizhsport_order" >> $GITHUB_ENV
 
-      - name: 🐘 Installer PHP, extensions et Composer
+      - name: Installer PHP et Composer avec les extensions requises
         run: |
           docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            apt-get update && apt-get install -y librabbitmq-dev libssl-dev zip unzip git &&
-            docker-php-ext-install sockets pdo pdo_mysql &&
+            apt-get update && apt-get install -y librabbitmq-dev libssl-dev &&
+            docker-php-ext-install sockets pdo_mysql &&
             if ! php -m | grep -q 'amqp'; then pecl install amqp && docker-php-ext-enable amqp; fi &&
             curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer &&
-            composer install --prefer-dist --no-progress --no-interaction"
+            composer install --prefer-dist --no-progress"
 
-      - name: 🚀 Tester connexion MySQL avant Symfony
-        run: |
-          echo "Test de connexion MySQL..."
-          docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            php -r 'try { new PDO(getenv(\"DATABASE_URL\")); echo \"✅ Connexion MySQL réussie !\n\"; } catch (Exception \$e) { echo \"🚨 Connexion MySQL échouée : {\$e->getMessage()}\n\"; exit(1); }'"
-
-      - name: 🗑 Vider le cache Symfony
+      - name: Vider le cache Symfony
         run: |
           docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
             php bin/console cache:clear"
