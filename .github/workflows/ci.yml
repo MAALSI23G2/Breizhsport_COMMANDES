@@ -53,19 +53,41 @@ jobs:
           extensions: pdo_mysql, amqp, sockets
           coverage: none
 
+      - name: ⚙️ Configurer l'environnement
+        run: |
+          echo "APP_ENV=test" > .env
+          echo "APP_SECRET=\$ecretf0rt3st" >> .env
+          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order?serverVersion=8.0" >> .env
+          echo "MESSENGER_TRANSPORT_DSN=amqp://user:password@127.0.0.1:5672/%2f" >> .env
+          echo "CORS_ALLOW_ORIGIN=http://localhost:5173" >> .env
+          cat .env
+
+      - name: 🔍 Vérifier la connexion MySQL
+        run: |
+          echo "<?php
+          try {
+              new PDO('mysql:host=127.0.0.1;port=3306;dbname=symfony_breizhsport_order', 'symfony', 'symfony');
+              echo 'Connexion MySQL réussie!\n';
+          } catch (PDOException \$e) {
+              echo 'Erreur de connexion: ' . \$e->getMessage() . '\n';
+              exit(1);
+          }
+          ?>" > test_db.php
+          php test_db.php
+
       - name: 📦 Installer les dépendances
         run: |
           composer install --prefer-dist --no-progress --no-interaction
 
-      - name: ⚙️ Préparer l'environnement de test
+      - name: 🗑 Préparer l'environnement et la base de données
         run: |
-          echo "APP_ENV=test" >> .env.local
-          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order?serverVersion=8.0" >> .env.local
-          echo "MESSENGER_TRANSPORT_DSN=amqp://user:password@127.0.0.1:5672/%2f" >> .env.local
-
-      - name: 🗑 Vider le cache et préparer la base de données
-        run: |
-          php bin/console cache:clear --env=test
+          rm -rf var/cache/*
+          php bin/console cache:warmup --env=test
           php bin/console doctrine:database:drop --force --if-exists --env=test
           php bin/console doctrine:database:create --env=test
           php bin/console doctrine:schema:create --env=test
+
+      - name: ✅ Vérifier la configuration
+        run: |
+          php bin/console debug:container --env=test --parameter=database_url
+          php bin/console debug:env --env=test
