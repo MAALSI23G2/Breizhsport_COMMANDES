@@ -19,7 +19,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: symfony_breizhsport_order
+          MYSQL_DATABASE: symfony_breizhsport_order_test
           MYSQL_USER: symfony
           MYSQL_PASSWORD: symfony
         ports:
@@ -57,10 +57,15 @@ jobs:
         run: |
           echo "APP_ENV=test" > .env
           echo "APP_SECRET=\$ecretf0rt3st" >> .env
-          # Utiliser root pour la création de la base de données
-          echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" >> .env
+          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" >> .env
           echo "MESSENGER_TRANSPORT_DSN=amqp://user:password@127.0.0.1:5672/%2f" >> .env
           echo "CORS_ALLOW_ORIGIN=http://localhost:5173" >> .env
+
+      - name: 🔍 Vérifier la configuration MySQL
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "
+            SHOW GRANTS FOR 'symfony'@'%';
+            SHOW DATABASES;"
 
       - name: 📦 Installer les dépendances
         run: |
@@ -70,20 +75,17 @@ jobs:
         run: |
           rm -rf var/cache/*
           php bin/console cache:warmup --env=test
-          
-          # Créer la base de données et configurer les permissions
+
+          # S'assurer que l'utilisateur symfony a les bonnes permissions
           mysql -h127.0.0.1 -uroot -proot -e "
             DROP DATABASE IF EXISTS symfony_breizhsport_order_test;
             CREATE DATABASE symfony_breizhsport_order_test;
             GRANT ALL PRIVILEGES ON symfony_breizhsport_order_test.* TO 'symfony'@'%';
             FLUSH PRIVILEGES;"
-          
-          # Maintenant utiliser l'utilisateur symfony pour la suite
-          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" > .env.test.local
-          
-          php bin/console doctrine:schema:create --env=test
 
-      - name: ✅ Vérifier la configuration
+          # Créer le schéma de la base de données
+          DATABASE_URL="mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" php bin/console doctrine:schema:create --env=test --no-interaction
+
+      - name: ✅ Vérifier la base de données
         run: |
-          php bin/console debug:container --env=test --parameter=database_url
-          php bin/console debug:env --env=test
+          mysql -h127.0.0.1 -usymfony -psymfony -e "SHOW TABLES FROM symfony_breizhsport_order_test;"
