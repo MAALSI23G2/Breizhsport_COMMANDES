@@ -57,23 +57,10 @@ jobs:
         run: |
           echo "APP_ENV=test" > .env
           echo "APP_SECRET=\$ecretf0rt3st" >> .env
-          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order?serverVersion=8.0" >> .env
+          # Utiliser root pour la création de la base de données
+          echo "DATABASE_URL=mysql://root:root@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" >> .env
           echo "MESSENGER_TRANSPORT_DSN=amqp://user:password@127.0.0.1:5672/%2f" >> .env
           echo "CORS_ALLOW_ORIGIN=http://localhost:5173" >> .env
-          cat .env
-
-      - name: 🔍 Vérifier la connexion MySQL
-        run: |
-          echo "<?php
-          try {
-              new PDO('mysql:host=127.0.0.1;port=3306;dbname=symfony_breizhsport_order', 'symfony', 'symfony');
-              echo 'Connexion MySQL réussie!\n';
-          } catch (PDOException \$e) {
-              echo 'Erreur de connexion: ' . \$e->getMessage() . '\n';
-              exit(1);
-          }
-          ?>" > test_db.php
-          php test_db.php
 
       - name: 📦 Installer les dépendances
         run: |
@@ -83,8 +70,17 @@ jobs:
         run: |
           rm -rf var/cache/*
           php bin/console cache:warmup --env=test
-          php bin/console doctrine:database:drop --force --if-exists --env=test
-          php bin/console doctrine:database:create --env=test
+          
+          # Créer la base de données et configurer les permissions
+          mysql -h127.0.0.1 -uroot -proot -e "
+            DROP DATABASE IF EXISTS symfony_breizhsport_order_test;
+            CREATE DATABASE symfony_breizhsport_order_test;
+            GRANT ALL PRIVILEGES ON symfony_breizhsport_order_test.* TO 'symfony'@'%';
+            FLUSH PRIVILEGES;"
+          
+          # Maintenant utiliser l'utilisateur symfony pour la suite
+          echo "DATABASE_URL=mysql://symfony:symfony@127.0.0.1:3306/symfony_breizhsport_order_test?serverVersion=8.0" > .env.test.local
+          
           php bin/console doctrine:schema:create --env=test
 
       - name: ✅ Vérifier la configuration
