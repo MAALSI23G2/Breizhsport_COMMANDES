@@ -71,13 +71,22 @@ jobs:
         run: |
           composer install --prefer-dist --no-progress --no-interaction
 
-      - name: 🚀 Tester connexion MySQL avant Symfony
+      - name: 🚀 Tester connexion MySQL
         run: |
           echo "Test de connexion MySQL..."
-          docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            php -r 'try { new PDO(getenv(\"DATABASE_URL\")); echo \"✅ Connexion MySQL réussie !\n\"; } catch (Exception \$e) { echo \"🚨 Connexion MySQL échouée : {\$e->getMessage()}\n\"; exit(1); }'"
+          php -r '
+            try {
+              $dbh = new PDO("mysql:host=127.0.0.1;port=3306;dbname=symfony_breizhsport_order_test", "symfony", "symfony");
+              echo "✅ Connexion MySQL réussie !\n";
+            } catch (PDOException $e) {
+              echo "🚨 Connexion MySQL échouée : " . $e->getMessage() . "\n";
+              exit(1);
+            }'
 
       - name: 🗑 Vider le cache Symfony
         run: |
-          docker run --rm -v $(pwd):/app -w /app php:8.2-cli bash -c "
-            php bin/console cache:clear"
+          php bin/console cache:clear --env=test
+
+      - name: 🔄 Préparer la base de données
+        run: |
+          php bin/console doctrine:schema:create --env=test --no-interaction
