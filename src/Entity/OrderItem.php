@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use ApiPlatform\Metadata\ApiResource;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
+
 #[ApiResource]
 #[ORM\Entity]
 class OrderItem
@@ -11,22 +13,28 @@ class OrderItem
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: "integer")]
+    #[Groups(["order:read"])]
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: "App\Entity\Order", inversedBy: "items")]
     #[ORM\JoinColumn(nullable: false)]
+    #[Groups(["order:read"])]
     private ?Order $order;
 
     #[ORM\Column(type: "integer")]
+    #[Groups(["order:read"])]
     private int $productId;
 
     #[ORM\Column(type: "string")]
+    #[Groups(["order:read"])]
     private string $productName;
 
     #[ORM\Column(type: "integer")]
+    #[Groups(["order:read"])]
     private int $quantity;
 
     #[ORM\Column(type: "float")]
+    #[Groups(["order:read"])]
     private float $price;
 
     public function getId(): ?int

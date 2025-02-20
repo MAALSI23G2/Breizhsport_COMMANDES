@@ -56,8 +56,6 @@ class OrderController extends AbstractController
         return new JsonResponse(['message' => "PanierGetOne UniqueId: $uniqueId  IdUser : $userId"], Response::HTTP_OK);
     }
 
-
-
     /**
      * @param int $userId
      * @param OrderRepository $orderRepository
@@ -67,7 +65,7 @@ class OrderController extends AbstractController
     #[Route('/order_list/{userId}', name: 'get_user_orders', methods: ['GET'])]
     public function getUserOrders(int $userId, OrderRepository $orderRepository, SerializerInterface $serializer): JsonResponse
     {
-        $orders = $orderRepository->findBy(['user_id' => $userId]);
+        $orders = $orderRepository->findBy(['userId' => $userId]);
         if (empty($orders)) {
             return new JsonResponse(['message' => 'Pas de commande effectuée'], Response::HTTP_OK);
         }

@@ -99,6 +99,9 @@ class RabbitMqRpcClient
         return json_decode($this->response, true);
     }
 
+    /**
+     * @throws Exception
+     */
     public function __destruct()
     {
         $this->channel->close();

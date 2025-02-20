@@ -6,6 +6,7 @@ use ApiPlatform\Metadata\ApiResource;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ApiResource]
 #[ORM\Entity]
@@ -15,23 +16,28 @@ class Order
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: "integer")]
+    #[Groups(["order:read"])]
     private ?int $id = null;
 
     #[ORM\Column(type: "integer")]
+    #[Groups(["order:read"])]
     private int $userId;
 
     #[ORM\OneToMany(mappedBy: "order", targetEntity: "App\Entity\OrderItem", cascade: ["persist"])]
+    #[Groups(["order:read"])]
     private Collection $items;
 
     #[ORM\Column(type: "float")]
+    #[Groups(["order:read"])]
     private float $total;
 
     #[ORM\Column(type: "string", length: 255, nullable: true)]
+    #[Groups(["order:read"])]
     private ?string $status = 'pending';
 
     #[ORM\Column(type: "datetime")]
+    #[Groups(["order:read"])]
     private \DateTime $createdAt;
-
     public function __construct()
     {
         $this->createdAt = new \DateTime();
