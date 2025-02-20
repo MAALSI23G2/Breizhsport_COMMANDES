@@ -88,7 +88,7 @@ class RabbitMqRpcClient
         );
 
         // Envoyer le message dans la queue `rpc_queue`
-        $this->channel->basic_publish($message, '', 'panier_queue');
+        $this->channel->basic_publish($message, '', 'PanierGetOne');
 
         // Attendre la réponse
         while (!$this->response) {
