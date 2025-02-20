@@ -13,7 +13,7 @@ framework:
                         PanierGetOne:
                             binding_keys: [PanierGetOne]
                     queue_options:
-                        durable:false
+                            durable: false
         routing:
             'App\Message\PanierGetOne': PanierGetOne
 
