@@ -16,7 +16,8 @@ framework:
                         name: order_exchange
                         type: direct
                     queues:
-                        PanierGetOne: ~
+                        PanierGetOne:
+                            durable: false
         routing:
             'App\Message\PanierGetOne': PanierGetOne
 
