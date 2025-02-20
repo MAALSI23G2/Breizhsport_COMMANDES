@@ -17,8 +17,10 @@ framework:
                         type: direct
                     queues:
                         PanierGetOne:
-                            durable: false
-        routing:
+                            binding_keys: [PanierGetOne]
+                    queue_options:
+                        durable: true
+            routing:
             'App\Message\PanierGetOne': PanierGetOne
 
 
