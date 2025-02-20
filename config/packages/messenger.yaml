@@ -2,14 +2,10 @@ framework:
     messenger:
         transports:
             panier_queue:
+                transport: amqp
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                options:
-                    exchange:
-                        name: order_exchange
-                        type: direct
-                    queues:
-                        panier_queue: ~
             PanierGetOne:
+                transport: amqp
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
                     exchange:
@@ -19,8 +15,8 @@ framework:
                         PanierGetOne:
                             binding_keys: [PanierGetOne]
                     queue_options:
-                        durable: true
-            routing:
+                        durable: false
+        routing:
             'App\Message\PanierGetOne': PanierGetOne
 
 
