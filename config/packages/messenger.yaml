@@ -6,9 +6,6 @@ framework:
             PanierGetOne:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
-                    exchange:
-                        name: order_exchange
-                        type: direct
                     queues:
                         PanierGetOne:
                             binding_keys: [PanierGetOne]
