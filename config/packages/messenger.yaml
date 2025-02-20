@@ -1,14 +1,6 @@
 framework:
     messenger:
         transports:
-            order_queue:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                options:
-                    exchange:
-                        name: order_exchange
-                        type: direct
-                    queues:
-                        order_queue: ~
             panier_queue:
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 options:
@@ -17,6 +9,15 @@ framework:
                         type: direct
                     queues:
                         panier_queue: ~
+            PanierGetOne:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    exchange:
+                        name: order_exchange
+                        type: direct
+                    queues:
+                        PanierGetOne: ~
         routing:
-            'App\Message\OrderMessage': order_queue
-            'App\Message\PanierGetOne': panier_queue
+            'App\Message\PanierGetOne': PanierGetOne
+
+
