@@ -32,7 +32,8 @@ class RabbitMqRpcClient
         $this->channel = $connection->channel();
 
         // Setup queue and consumer
-        list($this->callbackQueue, ,) = $this->channel->queue_declare('', false, false, true, false);
+        list($this->callbackQueue, ,) = $this->channel->queue_declare(
+            '', false, false, true, false);
         $this->channel->basic_consume(
             $this->callbackQueue,
             '',
