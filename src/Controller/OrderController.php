@@ -2,13 +2,12 @@
 
 namespace App\Controller;
 
-use App\Message\PanierGetOne;
 use App\Repository\OrderRepository;
+use App\Service\OrderService;
+use App\Service\RabbitMqRpcClient;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Messenger\Exception\ExceptionInterface;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -17,43 +16,64 @@ use Symfony\Component\Uid\Uuid;
 #[Route('/order', name: 'order')]
 class OrderController extends AbstractController
 {
-    private MessageBusInterface $messageBus;
-    public function __construct(MessageBusInterface $messageBus)
+    public function __construct()
     {
-        $this->messageBus = $messageBus;
     }
 
     /**
      * @param Request $request
+     * @param RabbitMqRpcClient $rpcClient
+     * @param OrderService $orderService
      * @return JsonResponse
-     * @throws ExceptionInterface
      */
     #[Route('/send_order', name: 'get_send_order', methods: ['POST'])]
-    public function sendOrder(Request $request): JsonResponse
+    public function sendOrder(
+        Request $request,
+        RabbitMqRpcClient $rpcClient,
+        OrderService $orderService
+    ): JsonResponse
     {
-        // Décoder le contenu JSON envoyé par le frontend
+        // Validation des données
         $data = json_decode($request->getContent(), true);
 
-        // Vérifier que $data est bien un tableau et que userId est présent
         if (!is_array($data) || !isset($data['userId'])) {
             return new JsonResponse(['error' => 'userId is required'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Vérifier que userId est un entier avant de faire le cast
-        if (is_numeric($data['userId']) && (int) $data['userId'] == $data['userId']) {
-            // S'assurer que userId est bien un entier
-            $userId = (int) $data['userId'];
-        } else {
+        if (!is_numeric($data['userId']) || (int) $data['userId'] != $data['userId']) {
             return new JsonResponse(['error' => 'userId must be an integer'], Response::HTTP_BAD_REQUEST);
         }
 
+        $userId = (int) $data['userId'];
         $uniqueId = Uuid::v4()->toRfc4122();
 
-        // Envoi d'un message dans RabbitMQ via Symfony Messenger
-        $this->messageBus->dispatch(new PanierGetOne($userId, $uniqueId));
 
-        // Retourner une réponse indiquant que le message a bien été envoyé
-        return new JsonResponse(['message' => "PanierGetOne UniqueId: $uniqueId  IdUser : $userId"], Response::HTTP_OK);
+        try {
+            // Appel RPC direct pour obtenir les détails du panier
+            $panierDetails = $rpcClient->call((string) $userId, $uniqueId);
+            if (!$panierDetails) {
+                throw new \Exception('Failed to retrieve panier details from the service');
+            }
+
+            // Utilisation du service pour créer la commande
+            $order = $orderService->createOrderFromPanierDetails($panierDetails);
+
+            return new JsonResponse([
+                'message' => 'Order created successfully',
+                'orderId' => $order->getId(),
+                'uniqueId' => $uniqueId,
+                'details' => [
+                    'total' => $order->getTotal(),
+                    'itemCount' => count($order->getItems())
+                ]
+            ], Response::HTTP_OK);
+
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Failed to process order',
+                'message' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**

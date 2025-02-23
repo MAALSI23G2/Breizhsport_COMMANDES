@@ -8,9 +8,9 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 class RabbitMqRpcClient
 {
-    private $connection;
-    private $channel;
-    private $callbackQueue;
+    private const TIMEOUT_SECONDS = 60;
+    private \PhpAmqpLib\Channel\AbstractChannel|\PhpAmqpLib\Channel\AMQPChannel $channel;
+    private mixed $callbackQueue;
     private $response;
     private $correlationId;
 
@@ -19,84 +19,68 @@ class RabbitMqRpcClient
      */
     public function __construct()
     {
-        // Récupérer l'URI de RabbitMQ à partir de la variable d'environnement
-        $rabbitMqUri = getenv('RABBITMQ_URI');
+        $rabbitMqUri = getenv('RABBITMQ_URI') ?: throw new Exception('RABBITMQ_URI is not set');
+        $parsedUrl = parse_url($rabbitMqUri) ?: throw new Exception('Invalid RABBITMQ_URI format');
 
-        // Si l'URI n'est pas défini, vous pouvez gérer l'erreur ou définir une valeur par défaut
-        if (!$rabbitMqUri) {
-            throw new Exception('RABBITMQ_URI is not set in the environment');
-        }
-
-        // Parse the URI to extract host and port
-        $parsedUrl = parse_url($rabbitMqUri);
-        $host = $parsedUrl['host'] ?? 'localhost';
-        $port = $parsedUrl['port'] ?? 5672;
-        $user = $parsedUrl['user'] ?? 'user';
-        $password = $parsedUrl['pass'] ?? 'password';
-
-        // Créer la connexion à RabbitMQ
-        $this->connection = new AMQPStreamConnection($host, $port, $user, $password);
-        $this->channel = $this->connection->channel();
-
-        // Déclarer une queue de réponse temporaire
-        list($this->callbackQueue, ,) = $this->channel->queue_declare(
-            'PanierDeclareResponse',
-            false,
-            false,
-            true,
-            false
+        $connection = new AMQPStreamConnection(
+            $parsedUrl['host'] ?? 'localhost',
+            $parsedUrl['port'] ?? 5672,
+            $parsedUrl['user'] ?? 'user',
+            $parsedUrl['pass'] ?? 'password'
         );
 
-        // Consommer les réponses
+        $this->channel = $connection->channel();
+
+        // Setup queue and consumer
+        list($this->callbackQueue, ,) = $this->channel->queue_declare('', false, false, true, false);
         $this->channel->basic_consume(
             $this->callbackQueue,
-            'PanierConsumeResponse',
+            '',
             false,
             true,
             false,
             false,
-            [$this, 'onResponse']
+            fn($msg) => $this->onResponse($msg)
         );
     }
 
-    public function onResponse(AMQPMessage $message): void
+    private function onResponse(AMQPMessage $message): void
     {
         if ($message->get('correlation_id') === $this->correlationId) {
             $this->response = $message->body;
         }
-         //Acknowledge the message
-        $message->delivery_info['channel']->basic_ack($message->delivery_info['delivery_tag']);
     }
 
-    public function call(string $userId, string $uniqueId): ?array
+    /**
+     * @throws Exception
+     */
+    public function call(string $userId, string $uniqueId): array
     {
         $this->response = null;
         $this->correlationId = uniqid();
 
-        // Créer le message à envoyer au service panier
-        $payload = json_encode([
-            'userId' => $userId,
-            'uniqueId' => $uniqueId,
-            'replyQueue' => $this->callbackQueue,
-        ]);
-        $message = new AMQPMessage(
-            $payload,
-            [
-                'correlation_id' => $this->correlationId,
-                'reply_to' => $this->callbackQueue,
-            ]
+        $this->channel->basic_publish(
+            new AMQPMessage(
+                json_encode(compact('userId', 'uniqueId')),
+                [
+                    'correlation_id' => $this->correlationId,
+                    'reply_to' => $this->callbackQueue
+                ]
+            ),
+            'PanierGetOne',
+            'PanierGetOne'
         );
 
-        // Envoyer le message dans la queue `PanierGetOne`
-        $this->channel->basic_publish($message, '', 'PanierGetOne');
-
-        // Attendre la réponse
+        $startTime = time();
         while (!$this->response) {
-            $this->channel->wait();
+            if ((time() - $startTime) >= self::TIMEOUT_SECONDS) {
+                throw new Exception('Timeout waiting for Panier service');
+            }
+            $this->channel->wait(null, false, 1);
         }
 
-        // Retourner la réponse décodée
-        return json_decode($this->response, true);
+        return json_decode($this->response, true)
+            ?: throw new Exception('Invalid response from Panier service');
     }
 
     /**
@@ -104,7 +88,7 @@ class RabbitMqRpcClient
      */
     public function __destruct()
     {
-        $this->channel->close();
-        $this->connection->close();
+        $this->channel?->close();
+        $this->channel?->getConnection()?->close();
     }
 }

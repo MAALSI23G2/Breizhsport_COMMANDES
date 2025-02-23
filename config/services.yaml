@@ -6,6 +6,13 @@
 parameters:
 
 services:
+    App\Service\OrderService:
+        autowire: true
+        
+    App\Service\RabbitMqRpcClient:
+        arguments:
+            $dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+
     App\MessageHandler\OrderMessageHandler:
         tags: [ 'messenger.message_handler' ]
 
