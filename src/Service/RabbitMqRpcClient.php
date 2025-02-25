@@ -55,23 +55,37 @@ class RabbitMqRpcClient
     /**
      * @throws Exception
      */
-    public function call(string $userId, string $uniqueId): array
+
+        public function call(string $userId, string $uniqueId): array
     {
         $this->response = null;
         $this->correlationId = uniqid();
 
-        $this->channel->basic_publish(
-            new AMQPMessage(
-                json_encode(compact('userId', 'uniqueId')),
-                [
-                    'correlation_id' => $this->correlationId,
-                    'reply_to' => $this->callbackQueue
-                ]
-            ),
-            'PanierGetOne',
-            'PanierGetOne'
+        // Déclarer explicitement l'exchange
+        $this->channel->exchange_declare(
+            'PanierGetOne',    // nom de l'exchange
+            'direct',          // type
+            false,             // passive
+            true,              // durable
+            false              // auto-delete
         );
 
+        $message = new AMQPMessage(
+            json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]),
+            [
+                'correlation_id' => $this->correlationId,
+                'reply_to' => $this->callbackQueue,
+                'content_type' => 'application/json'
+            ]
+        );
+
+        $this->channel->basic_publish(
+            $message,
+            'PanierGetOne',    // exchange
+            'PanierGetOne'     // routing key
+        );
+
+        // Suite du code avec la gestion du timeout...
         $startTime = time();
         while (!$this->response) {
             if ((time() - $startTime) >= self::TIMEOUT_SECONDS) {
