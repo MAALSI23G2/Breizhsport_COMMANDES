@@ -62,13 +62,25 @@ class RabbitMqRpcClient
         $this->correlationId = uniqid();
 
         // Déclarer explicitement l'exchange
-        $this->channel->exchange_declare(
-            'PanierGetOne',    // nom de l'exchange
-            'direct',          // type
-            false,             // passive
-            true,              // durable
-            false              // auto-delete
-        );
+        try {
+            // Vérifier si l'exchange existe sans essayer de le créer
+            $this->channel->exchange_declare(
+                'PanierGetOne',    // nom
+                'direct',          // type
+                true,              // passive (true = vérifier seulement)
+                false,             // durable
+                false              // auto-delete
+            );
+        } catch (\Exception $e) {
+            // Si l'exchange n'existe pas, le créer
+            $this->channel->exchange_declare(
+                'PanierGetOne',
+                'direct',
+                false,            // passive (false = créer)
+                false,            // durable
+                false
+            );
+        }
 
         $message = new AMQPMessage(
             json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]),
