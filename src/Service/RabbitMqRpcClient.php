@@ -46,7 +46,6 @@ class RabbitMqRpcClient
             fn($msg) => $this->onResponse($msg)
         );
     }
-
     private function onResponse(AMQPMessage $message): void
     {
         error_log("Réponse reçue avec correlation_id: " . $message->get('correlation_id'));
