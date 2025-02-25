@@ -77,7 +77,7 @@ class RabbitMqRpcClient
             if ((time() - $startTime) >= self::TIMEOUT_SECONDS) {
                 throw new Exception('Timeout waiting for Panier service');
             }
-            $this->channel->wait(null, false, 1);
+            $this->channel->wait(null, false, 60);
         }
 
         return json_decode($this->response, true)
