@@ -14,6 +14,7 @@ class RabbitMqRpcClient
     private $response;
     private $correlationId;
 
+
     /**
      * @throws Exception
      */
@@ -34,6 +35,7 @@ class RabbitMqRpcClient
         // Setup queue and consumer
         list($this->callbackQueue, ,) = $this->channel->queue_declare(
             '', false, false, true, false);
+        error_log("Queue de callback créée : " . $this->callbackQueue);
         $this->channel->basic_consume(
             $this->callbackQueue,
             '',
@@ -47,11 +49,17 @@ class RabbitMqRpcClient
 
     private function onResponse(AMQPMessage $message): void
     {
+        error_log("Réponse reçue avec correlation_id: " . $message->get('correlation_id'));
+        error_log("Notre correlation_id attendu: " . $this->correlationId);
+
         if ($message->get('correlation_id') === $this->correlationId) {
+            error_log("Correlation IDs correspondent, traitement de la réponse");
             $this->response = $message->body;
+            error_log("Contenu de la réponse: " . $this->response);
+        } else {
+            error_log("Correlation IDs ne correspondent pas, message ignoré");
         }
     }
-
     /**
      * @throws Exception
      */
