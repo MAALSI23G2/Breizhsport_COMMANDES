@@ -42,7 +42,6 @@ class RabbitMqRpcClient
                 $parsedUrl['port'] ?? 5672,
                 $parsedUrl['user'] ?? 'user',
                 $parsedUrl['pass'] ?? 'password',
-                $parsedUrl['path'] ? ltrim($parsedUrl['path'], '/') : '/'
             );
 
             error_log("Connexion établie avec succès, création du canal");
