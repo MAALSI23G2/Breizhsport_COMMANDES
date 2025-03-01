@@ -187,21 +187,24 @@ class RabbitMqRpcClient
         }
 
         // Si le contenu est sous forme de chaîne JSON, le décoder
-        if (is_string($decodedResponse['content']) && !empty($decodedResponse['content'])) {
-            try {
-                $content = json_decode($decodedResponse['content'], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $decodedResponse['content'] = $content;
-                    error_log("Contenu JSON interne décodé avec succès");
-                } else {
-                    error_log("Note: Le contenu n'est pas un JSON valide mais une chaîne");
-                }
-            } catch (\Exception $e) {
-                error_log("Exception lors du décodage du contenu: " . $e->getMessage());
-            }
+        // Traitement de la réponse
+        $decodedResponse = json_decode($this->response, true);
+        if (!$decodedResponse) {
+            error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
+            throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
         }
 
-        return $decodedResponse['content'] ?? $decodedResponse;
+        error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
+
+        // Vérification des données attendues (suppression de la vérification de 'content')
+        if (!isset($decodedResponse['_id']) || !isset($decodedResponse['products'])) {
+            error_log("ERREUR: Réponse inattendue, clé '_id' ou 'products' manquante");
+            throw new Exception("Unexpected response structure from Panier service");
+        }
+
+        // Retourner directement la réponse décodée sans chercher 'content'
+        return $decodedResponse;
+
     }
 
     /**
