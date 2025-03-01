@@ -13,7 +13,6 @@ class RabbitMqRpcClient
     private mixed $callbackQueue;
     private $response;
     private $correlationId;
-    private $connection;
 
 
     /**
@@ -31,13 +30,12 @@ class RabbitMqRpcClient
             $parsedUrl['pass'] ?? 'password'
         );
 
-        $this->channel = $this->connection->channel();
+        $this->channel = $connection->channel();
 
         // Setup queue and consumer
         list($this->callbackQueue, ,) = $this->channel->queue_declare(
             '', false, false, true, false);
         error_log("Queue de callback créée : " . $this->callbackQueue);
-
         $this->channel->basic_consume(
             $this->callbackQueue,
             '',
@@ -45,14 +43,9 @@ class RabbitMqRpcClient
             true,
             false,
             false,
-            function($msg) {
-                $this->onResponse($msg);
-            }
+            fn($msg) => $this->onResponse($msg)
         );
-
-        error_log("RabbitMqRpcClient initialisé avec succès");
     }
-
     private function onResponse(AMQPMessage $message): void
     {
         error_log("Réponse reçue avec correlation_id: " . $message->get('correlation_id'));
@@ -61,120 +54,69 @@ class RabbitMqRpcClient
         if ($message->get('correlation_id') === $this->correlationId) {
             error_log("Correlation IDs correspondent, traitement de la réponse");
             $this->response = $message->body;
-            error_log("Contenu de la réponse (brut): " . substr($this->response, 0, 200) . (strlen($this->response) > 200 ? '...' : ''));
-
-            // Vérification de la validité du JSON
-            $jsonDecoded = json_decode($this->response, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                error_log("ERREUR: La réponse n'est pas un JSON valide: " . json_last_error_msg());
-            } else {
-                error_log("La réponse est un JSON valide avec " . count($jsonDecoded) . " clés de premier niveau");
-            }
+            error_log("Contenu de la réponse: " . $this->response);
         } else {
             error_log("Correlation IDs ne correspondent pas, message ignoré");
         }
     }
-
     /**
      * @throws Exception
      */
-    public function call(string $userId, string $uniqueId): array
+
+        public function call(string $userId, string $uniqueId): array
     {
         $this->response = null;
         $this->correlationId = uniqid();
 
-        error_log("Début de l'appel RPC avec userId: $userId, uniqueId: $uniqueId, correlationId: {$this->correlationId}");
+        error_log("Envoi de la requête RPC avec userId: $userId et uniqueId: $uniqueId");
 
-        // Préparer le message à envoyer
-        $messageContent = json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]);
-        error_log("Contenu du message à envoyer: $messageContent");
-
+        // Déclarer explicitement l'exchange
         try {
-            // Vérifier si l'exchange existe
-            error_log("Vérification/création de l'exchange 'PanierGetOne'");
+            // Vérifier si l'exchange existe sans essayer de le créer
+            $this->channel->exchange_declare(
+                'PanierGetOne',    // nom
+                'direct',          // type
+                true,              // passive (true = vérifier seulement)
+                false,             // durable
+                false              // auto-delete
+            );
+        } catch (\Exception $e) {
+            // Si l'exchange n'existe pas, le créer
             $this->channel->exchange_declare(
                 'PanierGetOne',
                 'direct',
-                false,  // passive (false = créer si n'existe pas)
-                true,   // durable
-                false   // auto-delete
+                false,            // passive (false = créer)
+                false,            // durable
+                false
             );
-            error_log("Exchange 'PanierGetOne' prêt");
-        } catch (\Exception $e) {
-            error_log("Erreur lors de la déclaration de l'exchange: " . $e->getMessage());
-            throw new Exception('Failed to declare exchange: ' . $e->getMessage());
         }
 
-        // Création et envoi du message
         $message = new AMQPMessage(
-            $messageContent,
+            json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]),
             [
                 'correlation_id' => $this->correlationId,
                 'reply_to' => $this->callbackQueue,
-                'content_type' => 'application/json',
-                'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT
+                'content_type' => 'application/json'
             ]
         );
 
-        error_log("Envoi du message à l'exchange 'PanierGetOne' avec routing key 'PanierGetOne'");
         $this->channel->basic_publish(
             $message,
             'PanierGetOne',    // exchange
             'PanierGetOne'     // routing key
         );
-        error_log("Message publié avec succès");
 
-        // Attente de la réponse avec gestion du timeout
+        // Suite du code avec la gestion du timeout...
         $startTime = time();
-        error_log("Début de l'attente de la réponse (timeout: " . self::TIMEOUT_SECONDS . " secondes)");
-
         while (!$this->response) {
-            $elapsedTime = time() - $startTime;
-            if ($elapsedTime >= self::TIMEOUT_SECONDS) {
-                error_log("TIMEOUT après $elapsedTime secondes");
-                throw new Exception("Timeout waiting for Panier service after $elapsedTime seconds");
+            if ((time() - $startTime) >= self::TIMEOUT_SECONDS) {
+                throw new Exception('Timeout waiting for Panier service');
             }
-
-            if ($elapsedTime > 0 && $elapsedTime % 5 == 0) {
-                error_log("Toujours en attente de réponse... ($elapsedTime secondes écoulées)");
-            }
-
-            $this->channel->wait(null, false, 1);
+            $this->channel->wait(null, false, 60);
         }
 
-        error_log("Réponse reçue après " . (time() - $startTime) . " secondes");
-
-        // Traitement de la réponse
-        $decodedResponse = json_decode($this->response, true);
-        if (!$decodedResponse) {
-            error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
-            throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
-        }
-
-        error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
-
-        // Vérification des données attendues
-        if (!isset($decodedResponse['content'])) {
-            error_log("ERREUR: La clé 'content' est manquante dans la réponse");
-            throw new Exception("Missing 'content' key in Panier service response");
-        }
-
-        // Si le contenu est sous forme de chaîne JSON, le décoder
-        if (is_string($decodedResponse['content']) && !empty($decodedResponse['content'])) {
-            try {
-                $content = json_decode($decodedResponse['content'], true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $decodedResponse['content'] = $content;
-                    error_log("Contenu JSON interne décodé avec succès");
-                } else {
-                    error_log("Note: Le contenu n'est pas un JSON valide mais une chaîne");
-                }
-            } catch (\Exception $e) {
-                error_log("Exception lors du décodage du contenu: " . $e->getMessage());
-            }
-        }
-
-        return $decodedResponse['content'] ?? $decodedResponse;
+        return json_decode($this->response, true)
+            ?: throw new Exception('Invalid response from Panier service');
     }
 
     /**
@@ -182,18 +124,7 @@ class RabbitMqRpcClient
      */
     public function __destruct()
     {
-        try {
-            if ($this->channel->is_open()) {
-                error_log("Fermeture du canal RabbitMQ");
-                $this->channel->close();
-            }
-
-            if ($this->connection && $this->connection->isConnected()) {
-                error_log("Fermeture de la connexion RabbitMQ");
-                $this->connection->close();
-            }
-        } catch (\Exception $e) {
-            error_log("Erreur lors de la fermeture des ressources RabbitMQ: " . $e->getMessage());
-        }
+        $this->channel?->close();
+        $this->channel?->getConnection()?->close();
     }
 }
