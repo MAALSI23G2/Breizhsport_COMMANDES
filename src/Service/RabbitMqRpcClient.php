@@ -15,6 +15,7 @@ class RabbitMqRpcClient
     private $correlationId;
     private $connection;
 
+
     /**
      * @throws Exception
      */
@@ -23,12 +24,11 @@ class RabbitMqRpcClient
         $rabbitMqUri = getenv('RABBITMQ_URI') ?: throw new Exception('RABBITMQ_URI is not set');
         $parsedUrl = parse_url($rabbitMqUri) ?: throw new Exception('Invalid RABBITMQ_URI format');
 
-        $this->connection = new AMQPStreamConnection(
+        $connection = new AMQPStreamConnection(
             $parsedUrl['host'] ?? 'localhost',
             $parsedUrl['port'] ?? 5672,
             $parsedUrl['user'] ?? 'user',
-            $parsedUrl['pass'] ?? 'password',
-            $parsedUrl['path'] ? ltrim($parsedUrl['path'], '/') : '/'
+            $parsedUrl['pass'] ?? 'password'
         );
 
         $this->channel = $this->connection->channel();
