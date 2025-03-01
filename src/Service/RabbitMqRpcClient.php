@@ -123,7 +123,7 @@ class RabbitMqRpcClient
                 'PanierGetOne',
                 'direct',
                 false,  // passive (false = créer si n'existe pas)
-                true,   // durable
+                false,   // durable
                 false   // auto-delete
             );
             error_log("Exchange 'PanierGetOne' prêt");
