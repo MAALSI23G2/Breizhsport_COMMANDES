@@ -13,7 +13,7 @@ class RabbitMqRpcClient
     private mixed $callbackQueue;
     private $response;
     private $correlationId;
-
+    private $connection;
 
     /**
      * @throws Exception
@@ -23,19 +23,21 @@ class RabbitMqRpcClient
         $rabbitMqUri = getenv('RABBITMQ_URI') ?: throw new Exception('RABBITMQ_URI is not set');
         $parsedUrl = parse_url($rabbitMqUri) ?: throw new Exception('Invalid RABBITMQ_URI format');
 
-        $connection = new AMQPStreamConnection(
+        $this->connection = new AMQPStreamConnection(
             $parsedUrl['host'] ?? 'localhost',
             $parsedUrl['port'] ?? 5672,
             $parsedUrl['user'] ?? 'user',
-            $parsedUrl['pass'] ?? 'password'
+            $parsedUrl['pass'] ?? 'password',
+            $parsedUrl['path'] ? ltrim($parsedUrl['path'], '/') : '/'
         );
 
-        $this->channel = $connection->channel();
+        $this->channel = $this->connection->channel();
 
         // Setup queue and consumer
         list($this->callbackQueue, ,) = $this->channel->queue_declare(
             '', false, false, true, false);
         error_log("Queue de callback créée : " . $this->callbackQueue);
+
         $this->channel->basic_consume(
             $this->callbackQueue,
             '',
@@ -43,9 +45,14 @@ class RabbitMqRpcClient
             true,
             false,
             false,
-            fn($msg) => $this->onResponse($msg)
+            function($msg) {
+                $this->onResponse($msg);
+            }
         );
+
+        error_log("RabbitMqRpcClient initialisé avec succès");
     }
+
     private function onResponse(AMQPMessage $message): void
     {
         error_log("Réponse reçue avec correlation_id: " . $message->get('correlation_id'));
@@ -54,67 +61,120 @@ class RabbitMqRpcClient
         if ($message->get('correlation_id') === $this->correlationId) {
             error_log("Correlation IDs correspondent, traitement de la réponse");
             $this->response = $message->body;
-            error_log("Contenu de la réponse: " . $this->response);
+            error_log("Contenu de la réponse (brut): " . substr($this->response, 0, 200) . (strlen($this->response) > 200 ? '...' : ''));
+
+            // Vérification de la validité du JSON
+            $jsonDecoded = json_decode($this->response, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log("ERREUR: La réponse n'est pas un JSON valide: " . json_last_error_msg());
+            } else {
+                error_log("La réponse est un JSON valide avec " . count($jsonDecoded) . " clés de premier niveau");
+            }
         } else {
             error_log("Correlation IDs ne correspondent pas, message ignoré");
         }
     }
+
     /**
      * @throws Exception
      */
-
-        public function call(string $userId, string $uniqueId): array
+    public function call(string $userId, string $uniqueId): array
     {
         $this->response = null;
         $this->correlationId = uniqid();
 
-        // Déclarer explicitement l'exchange
+        error_log("Début de l'appel RPC avec userId: $userId, uniqueId: $uniqueId, correlationId: {$this->correlationId}");
+
+        // Préparer le message à envoyer
+        $messageContent = json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]);
+        error_log("Contenu du message à envoyer: $messageContent");
+
         try {
-            // Vérifier si l'exchange existe sans essayer de le créer
-            $this->channel->exchange_declare(
-                'PanierGetOne',    // nom
-                'direct',          // type
-                true,              // passive (true = vérifier seulement)
-                false,             // durable
-                false              // auto-delete
-            );
-        } catch (\Exception $e) {
-            // Si l'exchange n'existe pas, le créer
+            // Vérifier si l'exchange existe
+            error_log("Vérification/création de l'exchange 'PanierGetOne'");
             $this->channel->exchange_declare(
                 'PanierGetOne',
                 'direct',
-                false,            // passive (false = créer)
-                false,            // durable
-                false
+                false,  // passive (false = créer si n'existe pas)
+                true,   // durable
+                false   // auto-delete
             );
+            error_log("Exchange 'PanierGetOne' prêt");
+        } catch (\Exception $e) {
+            error_log("Erreur lors de la déclaration de l'exchange: " . $e->getMessage());
+            throw new Exception('Failed to declare exchange: ' . $e->getMessage());
         }
 
+        // Création et envoi du message
         $message = new AMQPMessage(
-            json_encode(['userId' => $userId, 'uniqueId' => $uniqueId]),
+            $messageContent,
             [
                 'correlation_id' => $this->correlationId,
                 'reply_to' => $this->callbackQueue,
-                'content_type' => 'application/json'
+                'content_type' => 'application/json',
+                'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT
             ]
         );
 
+        error_log("Envoi du message à l'exchange 'PanierGetOne' avec routing key 'PanierGetOne'");
         $this->channel->basic_publish(
             $message,
             'PanierGetOne',    // exchange
             'PanierGetOne'     // routing key
         );
+        error_log("Message publié avec succès");
 
-        // Suite du code avec la gestion du timeout...
+        // Attente de la réponse avec gestion du timeout
         $startTime = time();
+        error_log("Début de l'attente de la réponse (timeout: " . self::TIMEOUT_SECONDS . " secondes)");
+
         while (!$this->response) {
-            if ((time() - $startTime) >= self::TIMEOUT_SECONDS) {
-                throw new Exception('Timeout waiting for Panier service');
+            $elapsedTime = time() - $startTime;
+            if ($elapsedTime >= self::TIMEOUT_SECONDS) {
+                error_log("TIMEOUT après $elapsedTime secondes");
+                throw new Exception("Timeout waiting for Panier service after $elapsedTime seconds");
             }
-            $this->channel->wait(null, false, 60);
+
+            if ($elapsedTime > 0 && $elapsedTime % 5 == 0) {
+                error_log("Toujours en attente de réponse... ($elapsedTime secondes écoulées)");
+            }
+
+            $this->channel->wait(null, false, 1);
         }
 
-        return json_decode($this->response, true)
-            ?: throw new Exception('Invalid response from Panier service');
+        error_log("Réponse reçue après " . (time() - $startTime) . " secondes");
+
+        // Traitement de la réponse
+        $decodedResponse = json_decode($this->response, true);
+        if (!$decodedResponse) {
+            error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
+            throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
+        }
+
+        error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
+
+        // Vérification des données attendues
+        if (!isset($decodedResponse['content'])) {
+            error_log("ERREUR: La clé 'content' est manquante dans la réponse");
+            throw new Exception("Missing 'content' key in Panier service response");
+        }
+
+        // Si le contenu est sous forme de chaîne JSON, le décoder
+        if (is_string($decodedResponse['content']) && !empty($decodedResponse['content'])) {
+            try {
+                $content = json_decode($decodedResponse['content'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $decodedResponse['content'] = $content;
+                    error_log("Contenu JSON interne décodé avec succès");
+                } else {
+                    error_log("Note: Le contenu n'est pas un JSON valide mais une chaîne");
+                }
+            } catch (\Exception $e) {
+                error_log("Exception lors du décodage du contenu: " . $e->getMessage());
+            }
+        }
+
+        return $decodedResponse['content'] ?? $decodedResponse;
     }
 
     /**
@@ -122,7 +182,18 @@ class RabbitMqRpcClient
      */
     public function __destruct()
     {
-        $this->channel?->close();
-        $this->channel?->getConnection()?->close();
+        try {
+            if ($this->channel->is_open()) {
+                error_log("Fermeture du canal RabbitMQ");
+                $this->channel->close();
+            }
+
+            if ($this->connection && $this->connection->isConnected()) {
+                error_log("Fermeture de la connexion RabbitMQ");
+                $this->connection->close();
+            }
+        } catch (\Exception $e) {
+            error_log("Erreur lors de la fermeture des ressources RabbitMQ: " . $e->getMessage());
+        }
     }
 }
