@@ -180,22 +180,6 @@ class RabbitMqRpcClient
 
         error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
 
-        // Vérification des données attendues
-        if (!isset($decodedResponse['content'])) {
-            error_log("ERREUR: La clé 'content' est manquante dans la réponse");
-            throw new Exception("Missing 'content' key in Panier service response");
-        }
-
-        // Si le contenu est sous forme de chaîne JSON, le décoder
-        // Traitement de la réponse
-        $decodedResponse = json_decode($this->response, true);
-        if (!$decodedResponse) {
-            error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
-            throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
-        }
-
-        error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
-
         // Vérification des données attendues (suppression de la vérification de 'content')
         if (!isset($decodedResponse['_id']) || !isset($decodedResponse['products'])) {
             error_log("ERREUR: Réponse inattendue, clé '_id' ou 'products' manquante");
