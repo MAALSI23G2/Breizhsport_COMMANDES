@@ -19,38 +19,66 @@ class RabbitMqRpcClient
     /**
      * @throws Exception
      */
+    /**
+     * @throws Exception
+     */
     public function __construct()
     {
-        $rabbitMqUri = getenv('RABBITMQ_URI') ?: throw new Exception('RABBITMQ_URI is not set');
-        $parsedUrl = parse_url($rabbitMqUri) ?: throw new Exception('Invalid RABBITMQ_URI format');
-
-        $connection = new AMQPStreamConnection(
-            $parsedUrl['host'] ?? 'localhost',
-            $parsedUrl['port'] ?? 5672,
-            $parsedUrl['user'] ?? 'user',
-            $parsedUrl['pass'] ?? 'password'
-        );
-
-        $this->channel = $this->connection->channel();
-
-        // Setup queue and consumer
-        list($this->callbackQueue, ,) = $this->channel->queue_declare(
-            '', false, false, true, false);
-        error_log("Queue de callback créée : " . $this->callbackQueue);
-
-        $this->channel->basic_consume(
-            $this->callbackQueue,
-            '',
-            false,
-            true,
-            false,
-            false,
-            function($msg) {
-                $this->onResponse($msg);
+        try {
+            $rabbitMqUri = getenv('RABBITMQ_URI');
+            if (!$rabbitMqUri) {
+                throw new Exception('RABBITMQ_URI is not set');
             }
-        );
 
-        error_log("RabbitMqRpcClient initialisé avec succès");
+            $parsedUrl = parse_url($rabbitMqUri);
+            if (!$parsedUrl) {
+                throw new Exception('Invalid RABBITMQ_URI format');
+            }
+
+            error_log("Tentative de connexion à RabbitMQ: " . $rabbitMqUri);
+
+            $this->connection = new AMQPStreamConnection(
+                $parsedUrl['host'] ?? 'localhost',
+                $parsedUrl['port'] ?? 5672,
+                $parsedUrl['user'] ?? 'user',
+                $parsedUrl['pass'] ?? 'password',
+                $parsedUrl['path'] ? ltrim($parsedUrl['path'], '/') : '/'
+            );
+
+            error_log("Connexion établie avec succès, création du canal");
+            $this->channel = $this->connection->channel();
+
+            error_log("Canal créé avec succès, déclaration de la queue de callback");
+
+            // Setup queue and consumer
+            list($this->callbackQueue, ,) = $this->channel->queue_declare(
+                '', false, false, true, false);
+            error_log("Queue de callback créée : " . $this->callbackQueue);
+
+            $this->channel->basic_consume(
+                $this->callbackQueue,
+                '',
+                false,
+                true,
+                false,
+                false,
+                function($msg) {
+                    $this->onResponse($msg);
+                }
+            );
+
+            error_log("RabbitMqRpcClient initialisé avec succès");
+        } catch (\Exception $e) {
+            error_log("ERREUR lors de l'initialisation de RabbitMqRpcClient: " . $e->getMessage());
+            // Nettoyage des ressources partiellement initialisées
+            if (isset($this->channel)) {
+                try { $this->channel->close(); } catch (\Exception $ex) {}
+            }
+            if (isset($this->connection) && $this->connection) {
+                try { $this->connection->close(); } catch (\Exception $ex) {}
+            }
+            throw $e;
+        }
     }
 
     private function onResponse(AMQPMessage $message): void
@@ -183,12 +211,12 @@ class RabbitMqRpcClient
     public function __destruct()
     {
         try {
-            if ($this->channel->is_open()) {
+            if ($this->channel && method_exists($this->channel, 'is_open') && $this->channel->is_open()) {
                 error_log("Fermeture du canal RabbitMQ");
                 $this->channel->close();
             }
 
-            if ($this->connection && $this->connection->isConnected()) {
+            if ($this->connection && method_exists($this->connection, 'isConnected') && $this->connection->isConnected()) {
                 error_log("Fermeture de la connexion RabbitMQ");
                 $this->connection->close();
             }
