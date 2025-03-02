@@ -129,7 +129,7 @@ class RabbitMqRpcClient
                 $exchangeName,
                 'direct',
                 false,  // passive (false = créer si n'existe pas)
-                true,   // durable
+                false,   // durable
                 false   // auto-delete
             );
 
