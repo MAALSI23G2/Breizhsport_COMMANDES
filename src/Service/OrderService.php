@@ -30,28 +30,36 @@ class OrderService
      */
     public function createOrderFromPanierDetails(array $panierDetails): Order
     {
-        // Log pour déboguer
-        $this->logger->info("Données reçues du service Panier", ['data' => $panierDetails]);
+        $this->logger->info("Structure détaillée des données reçues", [
+            'structure' => json_encode($panierDetails, JSON_PRETTY_PRINT)
+        ]);
 
-        // Vérifier si les produits existent
-        if (!isset($panierDetails['products']) || !is_array($panierDetails['products'])) {
-            $this->logger->error("La clé 'products' est manquante ou n'est pas un tableau");
-            throw new Exception("Missing or invalid 'products' key in Panier service response");
+        // Tentative d'identification des produits
+        $products = [];
+        if (isset($panierDetails['products']) && is_array($panierDetails['products'])) {
+            $products = $panierDetails['products'];
+        } elseif (isset($panierDetails['items']) && is_array($panierDetails['items'])) {
+            $products = $panierDetails['items'];
+        } elseif (isset($panierDetails[0]['id'])) {
+            // Si les données sont directement un tableau de produits
+            $products = $panierDetails;
         }
 
-        // Vérifier si le tableau de produits est vide
-        if (empty($panierDetails['products'])) {
-            $this->logger->warning("Le panier est vide");
-            throw new Exception("Cannot create order with empty cart");
+        if (empty($products)) {
+            $this->logger->error("Impossible de trouver des produits dans les données reçues");
+            throw new Exception("Cannot find products in Panier service response");
         }
 
-        // Extraction de l'ID utilisateur
+        // Extraction de l'ID utilisateur (avec davantage d'options)
         $userId = 0;
         if (isset($panierDetails['user']['id'])) {
             $userId = (int)$panierDetails['user']['id'];
         } elseif (isset($panierDetails['userId'])) {
             $userId = (int)$panierDetails['userId'];
+        } elseif (isset($panierDetails['user_id'])) {
+            $userId = (int)$panierDetails['user_id'];
         }
+
 
         if ($userId <= 0) {
             $this->logger->error("ID utilisateur invalide", ['userId' => $userId]);

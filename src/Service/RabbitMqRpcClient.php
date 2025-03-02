@@ -86,6 +86,9 @@ class RabbitMqRpcClient
         error_log("Notre correlation_id attendu: " . $this->correlationId);
 
         if ($message->get('correlation_id') === $this->correlationId) {
+            error_log("Réponse complète reçue du service Panier: " . $message->body);
+            $jsonDecoded = json_decode($message->body, true);
+            error_log("Structure de la réponse: " . print_r($jsonDecoded, true));
             error_log("Correlation IDs correspondent, traitement de la réponse");
             $this->response = $message->body;
             error_log("Contenu de la réponse (brut): " . substr($this->response, 0, 200) . (strlen($this->response) > 200 ? '...' : ''));
@@ -118,15 +121,26 @@ class RabbitMqRpcClient
 
         try {
             // Vérifier si l'exchange existe
-            error_log("Vérification/création de l'exchange 'PanierGetOne'");
+            $exchangeName = 'PanierGetOne';
+            $routingKey = 'PanierGetOne';
+
+            error_log("Vérification/création de l'exchange '$exchangeName'");
             $this->channel->exchange_declare(
-                'PanierGetOne',
+                $exchangeName,
                 'direct',
                 false,  // passive (false = créer si n'existe pas)
-                false,   // durable
+                true,   // durable
                 false   // auto-delete
             );
-            error_log("Exchange 'PanierGetOne' prêt");
+
+            error_log("Exchange '$exchangeName' prêt avec routing key '$routingKey'");
+
+            // Assurez-vous que la queue existe et est liée à l'exchange
+            $queueName = 'panier.get_one.queue';
+            $this->channel->queue_declare($queueName, false, true, false, false);
+            $this->channel->queue_bind($queueName, $exchangeName, $routingKey);
+
+            error_log("Queue '$queueName' prête et liée à l'exchange");
         } catch (\Exception $e) {
             error_log("Erreur lors de la déclaration de l'exchange: " . $e->getMessage());
             throw new Exception('Failed to declare exchange: ' . $e->getMessage());
@@ -143,11 +157,11 @@ class RabbitMqRpcClient
             ]
         );
 
-        error_log("Envoi du message à l'exchange 'PanierGetOne' avec routing key 'PanierGetOne'");
+        error_log("Envoi du message à l'exchange '$exchangeName' avec routing key '$routingKey'");
         $this->channel->basic_publish(
             $message,
-            'PanierGetOne',    // exchange
-            'PanierGetOne'     // routing key
+            $exchangeName,    // exchange
+            $routingKey       // routing key
         );
         error_log("Message publié avec succès");
 
@@ -175,20 +189,58 @@ class RabbitMqRpcClient
         $decodedResponse = json_decode($this->response, true);
         if (!$decodedResponse) {
             error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
+            error_log("Réponse brute reçue: " . substr($this->response, 0, 1000));
             throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
         }
 
         error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
 
-        // Vérification des données attendues (suppression de la vérification de 'content')
-        if (!isset($decodedResponse['_id']) || !isset($decodedResponse['products'])) {
-            error_log("ERREUR: Réponse inattendue, clé '_id' ou 'products' manquante");
-            throw new Exception("Unexpected response structure from Panier service");
+        // Vérification plus flexible des données attendues
+        if (empty($decodedResponse)) {
+            error_log("ERREUR: Réponse vide ou non-valide du service Panier");
+            throw new Exception("Empty or invalid response from Panier service");
         }
 
-        // Retourner directement la réponse décodée sans chercher 'content'
-        return $decodedResponse;
+        // Vérifier si la structure est celle attendue directement ou si elle est encapsulée
+        if (isset($decodedResponse['_id']) && isset($decodedResponse['products'])) {
+            error_log("Structure attendue standard détectée");
+            return $decodedResponse;
+        } else if (isset($decodedResponse['content']['products']) && isset($decodedResponse['content']['_id'])) {
+            error_log("Structure encapsulée dans 'content' détectée");
+            return $decodedResponse['content'];
+        } else {
+            // Tentative de récupération des données essentielles
+            error_log("ERREUR: Structure inattendue, tentative d'adaptation");
+            $adaptedResponse = [];
 
+            // Recherche des produits
+            if (isset($decodedResponse['products'])) {
+                $adaptedResponse['products'] = $decodedResponse['products'];
+            } else if (is_array($decodedResponse) && count($decodedResponse) > 0 && isset($decodedResponse[0]['id'])) {
+                // Si c'est juste un tableau de produits
+                $adaptedResponse['products'] = $decodedResponse;
+            }
+
+            // Recherche de l'ID utilisateur
+            if (isset($decodedResponse['user']['id'])) {
+                $adaptedResponse['user'] = ['id' => $decodedResponse['user']['id']];
+            } else if (isset($decodedResponse['userId'])) {
+                $adaptedResponse['user'] = ['id' => $decodedResponse['userId']];
+            } else {
+                $adaptedResponse['user'] = ['id' => $userId]; // Utiliser celui de la requête
+            }
+
+            // Générer un _id si absent
+            $adaptedResponse['_id'] = $decodedResponse['_id'] ?? uniqid();
+
+            if (!empty($adaptedResponse['products'])) {
+                error_log("Structure adaptée pour traitement: " . print_r($adaptedResponse, true));
+                return $adaptedResponse;
+            }
+
+            error_log("ERREUR: Impossible d'adapter la réponse. Structure reçue: " . print_r($decodedResponse, true));
+            throw new Exception("Unexpected response structure from Panier service");
+        }
     }
 
     /**
@@ -197,7 +249,7 @@ class RabbitMqRpcClient
     public function __destruct()
     {
         try {
-            if ($this->channel && method_exists($this->channel, 'is_open') && $this->channel->is_open()) {
+            if (method_exists($this->channel, 'is_open') && $this->channel->is_open()) {
                 error_log("Fermeture du canal RabbitMQ");
                 $this->channel->close();
             }
