@@ -82,29 +82,27 @@ class RabbitMqRpcClient
 
     private function onResponse(AMQPMessage $message): void
     {
-        error_log("Réponse reçue avec correlation_id: " . $message->get('correlation_id'));
-        error_log("Notre correlation_id attendu: " . $this->correlationId);
+        error_log("=== RÉPONSE REÇUE ===");
+        error_log("Correlation ID reçu: " . $message->get('correlation_id'));
+        error_log("Correlation ID attendu: " . $this->correlationId);
+        error_log("Contenu brut de la réponse: " . $message->body);
+
+        // Essayer de décoder le JSON pour voir ce qui est réellement reçu
+        $jsonData = json_decode($message->body, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            error_log("Décodage JSON réussi. Structure: " . print_r($jsonData, true));
+        } else {
+            error_log("ÉCHEC du décodage JSON: " . json_last_error_msg());
+            error_log("Les 200 premiers caractères de la réponse: " . substr($message->body, 0, 200));
+        }
 
         if ($message->get('correlation_id') === $this->correlationId) {
-            error_log("Réponse complète reçue du service Panier: " . $message->body);
-            $jsonDecoded = json_decode($message->body, true);
-            error_log("Structure de la réponse: " . print_r($jsonDecoded, true));
-            error_log("Correlation IDs correspondent, traitement de la réponse");
+            error_log("IDs de corrélation correspondent - traitement de la réponse");
             $this->response = $message->body;
-            error_log("Contenu de la réponse (brut): " . substr($this->response, 0, 200) . (strlen($this->response) > 200 ? '...' : ''));
-
-            // Vérification de la validité du JSON
-            $jsonDecoded = json_decode($this->response, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                error_log("ERREUR: La réponse n'est pas un JSON valide: " . json_last_error_msg());
-            } else {
-                error_log("La réponse est un JSON valide avec " . count($jsonDecoded) . " clés de premier niveau");
-            }
         } else {
-            error_log("Correlation IDs ne correspondent pas, message ignoré");
+            error_log("IDs de corrélation ne correspondent pas - message ignoré");
         }
     }
-
     /**
      * @throws Exception
      */
@@ -187,60 +185,16 @@ class RabbitMqRpcClient
 
         // Traitement de la réponse
         $decodedResponse = json_decode($this->response, true);
-        if (!$decodedResponse) {
-            error_log("ERREUR: Impossible de décoder la réponse JSON: " . json_last_error_msg());
-            error_log("Réponse brute reçue: " . substr($this->response, 0, 1000));
-            throw new Exception('Invalid response from Panier service: ' . json_last_error_msg());
-        }
+        dd($decodedResponse);
+        // Log complet de la réponse pour débogage
+        error_log("RÉPONSE COMPLÈTE: " . print_r($decodedResponse, true));
 
-        error_log("Réponse décodée avec succès, structure: " . print_r(array_keys($decodedResponse), true));
-
-        // Vérification plus flexible des données attendues
-        if (empty($decodedResponse)) {
-            error_log("ERREUR: Réponse vide ou non-valide du service Panier");
-            throw new Exception("Empty or invalid response from Panier service");
-        }
-
-        // Vérifier si la structure est celle attendue directement ou si elle est encapsulée
-        if (isset($decodedResponse['_id']) && isset($decodedResponse['products'])) {
-            error_log("Structure attendue standard détectée");
+        // Accepter n'importe quelle réponse tant qu'elle est un objet/array valide
+        if (is_array($decodedResponse)) {
             return $decodedResponse;
-        } else if (isset($decodedResponse['content']['products']) && isset($decodedResponse['content']['_id'])) {
-            error_log("Structure encapsulée dans 'content' détectée");
-            return $decodedResponse['content'];
-        } else {
-            // Tentative de récupération des données essentielles
-            error_log("ERREUR: Structure inattendue, tentative d'adaptation");
-            $adaptedResponse = [];
-
-            // Recherche des produits
-            if (isset($decodedResponse['products'])) {
-                $adaptedResponse['products'] = $decodedResponse['products'];
-            } else if (is_array($decodedResponse) && count($decodedResponse) > 0 && isset($decodedResponse[0]['id'])) {
-                // Si c'est juste un tableau de produits
-                $adaptedResponse['products'] = $decodedResponse;
-            }
-
-            // Recherche de l'ID utilisateur
-            if (isset($decodedResponse['user']['id'])) {
-                $adaptedResponse['user'] = ['id' => $decodedResponse['user']['id']];
-            } else if (isset($decodedResponse['userId'])) {
-                $adaptedResponse['user'] = ['id' => $decodedResponse['userId']];
-            } else {
-                $adaptedResponse['user'] = ['id' => $userId]; // Utiliser celui de la requête
-            }
-
-            // Générer un _id si absent
-            $adaptedResponse['_id'] = $decodedResponse['_id'] ?? uniqid();
-
-            if (!empty($adaptedResponse['products'])) {
-                error_log("Structure adaptée pour traitement: " . print_r($adaptedResponse, true));
-                return $adaptedResponse;
-            }
-
-            error_log("ERREUR: Impossible d'adapter la réponse. Structure reçue: " . print_r($decodedResponse, true));
-            throw new Exception("Unexpected response structure from Panier service");
         }
+
+        throw new Exception("Invalid JSON response from Panier service");
     }
 
     /**

@@ -28,129 +28,116 @@ class OrderService
     /**
      * @throws Exception
      */
-    public function createOrderFromPanierDetails(array $panierDetails): Order
+    public function createOrderFromPanierDetails($panierDetails): Order
     {
-        $this->logger->info("Structure détaillée des données reçues", [
-            'structure' => json_encode($panierDetails, JSON_PRETTY_PRINT)
-        ]);
-
-        // Tentative d'identification des produits
-        $products = [];
-        if (isset($panierDetails['products']) && is_array($panierDetails['products'])) {
-            $products = $panierDetails['products'];
-        } elseif (isset($panierDetails['items']) && is_array($panierDetails['items'])) {
-            $products = $panierDetails['items'];
-        } elseif (isset($panierDetails[0]['id'])) {
-            // Si les données sont directement un tableau de produits
-            $products = $panierDetails;
+        // Convertir en array si c'est une chaîne JSON
+        if (is_string($panierDetails)) {
+            $panierDetails = json_decode($panierDetails, true);
         }
+
+        // Log complet des données reçues
+        $this->logger->info("DONNÉES COMPLÈTES DU PANIER: " . print_r($panierDetails, true));
+
+        // Créer la commande avec les données disponibles
+        $order = new Order();
+
+        // Extraire l'ID utilisateur de n'importe où dans la structure
+        $userId = $this->extractUserId($panierDetails);
+        $order->setUserId($userId);
+
+        // Extraire les produits de n'importe où dans la structure
+        $products = $this->extractProducts($panierDetails);
 
         if (empty($products)) {
-            $this->logger->error("Impossible de trouver des produits dans les données reçues");
-            throw new Exception("Cannot find products in Panier service response");
+            throw new Exception("No products found in cart data");
         }
 
-        // Extraction de l'ID utilisateur (avec davantage d'options)
-        $userId = 0;
-        if (isset($panierDetails['user']['id'])) {
-            $userId = (int)$panierDetails['user']['id'];
-        } elseif (isset($panierDetails['userId'])) {
-            $userId = (int)$panierDetails['userId'];
-        } elseif (isset($panierDetails['user_id'])) {
-            $userId = (int)$panierDetails['user_id'];
+        // Traiter les produits
+        $total = 0;
+        foreach ($products as $product) {
+            $item = new OrderItem();
+
+            // Tenter d'extraire l'ID du produit
+            $productId = $product['id'] ?? $product['_id'] ?? $product['productId'] ?? 0;
+            $item->setProductId($productId);
+
+            // Tenter d'extraire le nom du produit
+            $productName = $product['name'] ?? $product['productName'] ?? 'Unknown Product';
+            $item->setProductName($productName);
+
+            // Tenter d'extraire la quantité
+            $quantity = $product['qte'] ?? $product['quantity'] ?? 1;
+            $item->setQuantity($quantity);
+
+            // Tenter d'extraire le prix
+            $price = $product['price'] ?? 0;
+            $item->setPrice($price);
+
+            // Ajouter à la commande
+            $order->addItem($item);
+            $total += $price * $quantity;
         }
 
+        $order->setTotal($total);
+        $order->setStatus('pending');
 
-        if ($userId <= 0) {
-            $this->logger->error("ID utilisateur invalide", ['userId' => $userId]);
-            throw new Exception("Invalid user ID");
-        }
+        // Persister et retourner
+        $this->entityManager->persist($order);
+        $this->entityManager->flush();
 
-        $this->logger->info("ID utilisateur extrait", ['userId' => $userId]);
+        return $order;
+    }
 
-        // Début de la transaction
-        $this->entityManager->beginTransaction();
+    private function extractUserId($data)
+    {
+        // Chercher l'userId partout dans les données
+        if (isset($data['user']['id'])) return (int)$data['user']['id'];
+        if (isset($data['userId'])) return (int)$data['userId'];
+        if (isset($data['user_id'])) return (int)$data['user_id'];
 
-        try {
-            $order = new Order();
-            $order->setUserId($userId);
-            $order->setStatus('pending');
-            $order->setCreatedAt(new \DateTime());
-
-            // Calcul du total de la commande
-            $total = 0;
-
-            foreach ($panierDetails['products'] as $product) {
-                // Validation du produit
-                if (!isset($product['id']) || !isset($product['name']) || !isset($product['price'])) {
-                    throw new Exception("Missing required product fields (id, name, or price)");
+        // Chercher récursivement dans les sous-objets
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                if (isset($value['id']) && $key === 'user') {
+                    return (int)$value['id'];
                 }
-
-                // Gérer les différentes façons dont la quantité peut être représentée
-                $quantity = $product['qte'] ?? ($product['quantity'] ?? 1);
-                if ($quantity <= 0) {
-                    $this->logger->warning("Quantité invalide pour le produit", [
-                        'productId' => $product['id'],
-                        'quantity' => $quantity
-                    ]);
-                    $quantity = 1; // Valeur par défaut
-                }
-
-                $price = (float)$product['price'];
-                if ($price < 0) {
-                    $this->logger->warning("Prix négatif pour le produit", [
-                        'productId' => $product['id'],
-                        'price' => $price
-                    ]);
-                    throw new Exception("Invalid product price");
-                }
-
-                $total += $price * $quantity;
-
-                $orderItem = new OrderItem();
-                $orderItem->setProductId($product['id']);
-                $orderItem->setProductName($product['name']);
-                $orderItem->setQuantity($quantity);
-                $orderItem->setPrice($price);
-                $order->addItem($orderItem);
-
-                $this->logger->info("Ajout du produit", [
-                    'id' => $product['id'],
-                    'name' => $product['name'],
-                    'quantity' => $quantity,
-                    'price' => $price
-                ]);
+                // Chercher récursivement
+                $result = $this->extractUserId($value);
+                if ($result > 0) return $result;
             }
-
-            $order->setTotal($total);
-            $this->logger->info("Total calculé", ['total' => $total]);
-
-            // Validation de l'entité si le validateur est disponible
-            if ($this->validator) {
-                $errors = $this->validator->validate($order);
-                if (count($errors) > 0) {
-                    $errorMessages = [];
-                    foreach ($errors as $error) {
-                        $errorMessages[] = $error->getMessage();
-                    }
-                    throw new Exception("Order validation failed: " . implode(', ', $errorMessages));
-                }
-            }
-
-            $this->entityManager->persist($order);
-            $this->entityManager->flush();
-            $this->entityManager->commit();
-
-            $this->logger->info("Commande créée avec succès", ['orderId' => $order->getId()]);
-
-            return $order;
-        } catch (\Exception $e) {
-            $this->entityManager->rollback();
-            $this->logger->error("Erreur lors de la création de la commande", [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw $e;
         }
+
+        return 1; // Valeur par défaut
+    }
+
+    private function extractProducts($data): array
+    {
+        // Chercher les produits partout dans les données
+        if (isset($data['products']) && is_array($data['products'])) {
+            return $data['products'];
+        }
+
+        if (isset($data['items']) && is_array($data['items'])) {
+            return $data['items'];
+        }
+
+        // Si la racine est un tableau d'objets avec un 'id', c'est peut-être des produits
+        if (isset($data[0]['id']) && is_array($data) && !empty($data)) {
+            return $data;
+        }
+
+        // Chercher récursivement dans les sous-objets
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                if ($key === 'products' || $key === 'items') {
+                    return $value;
+                }
+                // Chercher récursivement
+                $result = $this->extractProducts($value);
+                if (!empty($result)) return $result;
+            }
+        }
+
+        return [];
     }
 }
