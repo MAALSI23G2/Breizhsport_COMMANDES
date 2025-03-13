@@ -64,6 +64,7 @@ class OrderController extends AbstractController
                 'uniqueId' => $uniqueId,
                 'details' => [
                     'total' => $order->getTotal(),
+                    'product' => $order->getItems(),
                     'itemCount' => count($order->getItems())
                 ]
             ], Response::HTTP_OK);
