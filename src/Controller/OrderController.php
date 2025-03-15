@@ -64,7 +64,15 @@ class OrderController extends AbstractController
                 'uniqueId' => $uniqueId,
                 'details' => [
                     'total' => $order->getTotal(),
-                    'product' => $order->getItems(),
+                    'products' => array_map(function($item) {
+                        return [
+                            'id' => $item->getProductId(),
+                            'name' => $item->getProductName(),
+                            'quantity' => $item->getQuantity(),
+                            'price' => $item->getPrice(),
+                            'total' => $item->getPrice() * $item->getQuantity()
+                        ];
+                    }, $order->getItems()->toArray()),
                     'itemCount' => count($order->getItems())
                 ]
             ], Response::HTTP_OK);
